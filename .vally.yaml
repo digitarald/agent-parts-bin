@@ -1,0 +1,38 @@
+# Vally project configuration, also read by scripts/validate.mjs,
+# scripts/validate-evals.mjs, and scripts/evals.mjs. When you add, rename, or
+# remove a plugin with skills, update paths.skills; npm run verify checks it.
+paths:
+  skills:
+    - plugins/bug-report/skills
+    - plugins/team-brainstorm/skills
+    - plugins/customization-authoring/skills
+    - plugins/code-review/skills
+    - plugins/json-configuration/skills
+  evals:
+    - evals
+  # eval.yaml is Vally's default. *.eval.yaml lets one folder hold several
+  # specs, such as release.eval.yaml. Both work.
+  evalFilenames:
+    - eval.yaml
+    - "*.eval.yaml"
+  results: vally-results
+# Values containing a slash are repository-relative paths. The launcher and CI
+# pass them to evals as absolute paths.
+params:
+  # The headless canvas host that drives a real canvas extension in evals, and
+  # each extension it loads. See docs/evals.md#extensions.
+  CANVAS_HOST: evals/support/canvas-host.mjs
+  BRAINSTORM_EXTENSION: plugins/team-brainstorm/com.github.copilot/extensions/brainstorm/extension.mjs
+  JSON_MCP_SERVER: plugins/json-configuration/dist/server.mjs
+  # The authoring grader lints generated files with the pinned Vally CLI.
+  MARKETPLACE_VALLY_CLI: node_modules/@microsoft/vally-cli/dist/index.js
+suites:
+  smoke:
+    description: Representative model-backed coverage for every local skill, agent, hook, extension, and MCP tool
+    filter:
+      suite: smoke
+  full:
+    description: Positive, negative, and boundary cases for every local plugin
+    evals:
+      - evals/**/eval.yaml
+      - evals/**/*.eval.yaml

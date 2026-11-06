@@ -1,0 +1,81 @@
+name: Behavioral evals
+# Off by default, because evals run real Copilot sessions and spend AI credits.
+# Pull requests run evals only after you set the repository variable
+# ENABLE_EVALS to true. Manual runs work either way. The job runs the pinned
+# Vally CLI from package.json through the same launcher contributors use
+# locally. It uses the "evals" environment, so you can require a reviewer to
+# approve each run before it gets a token. See docs/ci.md.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - plugins/**
+      - evals/**
+      - schemas/**
+      - scripts/**
+      - .vally.yaml
+      - package.json
+      - package-lock.json
+      - .github/workflows/evals.yml
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Evaluation suite to run
+        type: choice
+        options: [smoke, full]
+        default: smoke
+permissions:
+  contents: read
+jobs:
+  evals:
+    # Manual runs always run. Pull requests run only when ENABLE_EVALS is true,
+    # the branch is in this repository (never a fork), and the PR isn't a draft.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (vars.ENABLE_EVALS == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.draft)
+    runs-on: ubuntu-latest
+    # Add required reviewers to this environment to approve each run before it starts.
+    environment: evals
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      copilot-requests: write
+    concurrency:
+      group: evals-${{ github.workflow_ref }}
+      cancel-in-progress: false
+    env:
+      SUITE: ${{ inputs.suite || 'smoke' }}
+      VALLY_TELEMETRY_OPTOUT: '1'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Check the runtime bridge
+        run: node scripts/eval-runtime.js --version
+      # --require-pass fails the job on a failed verdict.
+      # The launcher uses one worker and one bounded retry.
+      - name: Run evals
+        run: node scripts/evals.mjs eval --suite "$SUITE" --require-pass
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      # Prints the report and adds it to the job summary. It fails on an
+      # incomplete run or an infrastructure error.
+      - name: Report eval results
+        if: ${{ !cancelled() }}
+        run: node scripts/eval-report.mjs --suite "$SUITE"
+      # Results include transcripts, which can contain prompts, model output, and
+      # code, so they're uploaded only when EVALS_UPLOAD_RESULTS is true.
+      - name: Upload eval results
+        if: ${{ !cancelled() && vars.EVALS_UPLOAD_RESULTS == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: eval-results
+          path: vally-results/
+          retention-days: 7

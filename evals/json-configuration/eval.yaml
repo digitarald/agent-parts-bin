@@ -1,0 +1,142 @@
+name: json-configuration
+description: Real stdio MCP calls and grounded answers, including invalid JSON and JSON Pointer boundaries.
+type: capability
+defaults:
+  executor: copilot-sdk
+  model: gpt-5.4-mini
+  timeout: 2m
+  runs: 1
+agent_environment:
+  skills:
+    - ../../plugins/json-configuration/skills/json-configuration
+  mcpServers:
+    json-configuration:
+      type: stdio
+      command: node
+      args: ['${JSON_MCP_SERVER}']
+stimuli:
+  - name: validates-and-reads-port
+    prompt: >-
+      Use json-configuration and its MCP tools to validate
+      {"service":{"port":8443}} and read /service/port.
+      State the validation result and actual returned port. Don't edit files.
+    tags:
+      assets:
+        - skill:json-configuration/json-configuration
+        - mcp:json-configuration/json-configuration/validate_json
+        - mcp:json-configuration/json-configuration/get_json_value
+      suite: smoke
+      control: positive
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required: [json-configuration]
+      - type: tool-calls
+        config:
+          required:
+            - name: '(^|[./_-])validate_json$'
+              result: '"valid"\s*:\s*true'
+            - name: '(^|[./_-])get_json_value$'
+              args:
+                pointer: ^/service/port$
+              result: '"value"\s*:\s*8443'
+      - type: output-contains
+        config:
+          substring: "8443"
+      - type: diff-empty
+  - name: reports-invalid-json
+    prompt: >-
+      Use json-configuration and the validate_json MCP tool to check this exact text:
+      {"port":}
+      Report its error code. Don't fix the text or edit any files.
+    tags:
+      assets:
+        - skill:json-configuration/json-configuration
+        - mcp:json-configuration/json-configuration/validate_json
+      control: negative
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required: [json-configuration]
+      - type: tool-calls
+        config:
+          required:
+            - name: '(^|[./_-])validate_json$'
+              result: INVALID_JSON
+      - type: output-contains
+        config:
+          substring: INVALID_JSON
+      - type: diff-empty
+  - name: distinguishes-null-and-missing
+    prompt: >-
+      Use json-configuration and the get_json_value MCP tool with {"value":null}.
+      Look up /value and /missing. Explain which is present with null and which is
+      NOT_FOUND, using actual tool results. Don't edit files.
+    tags:
+      assets:
+        - skill:json-configuration/json-configuration
+        - mcp:json-configuration/json-configuration/get_json_value
+      control: negative
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required: [json-configuration]
+      - type: tool-calls
+        config:
+          required:
+            - name: '(^|[./_-])get_json_value$'
+              args:
+                pointer: ^/value$
+              result: '"value"\s*:\s*null'
+            - name: '(^|[./_-])get_json_value$'
+              args:
+                pointer: ^/missing$
+              result: NOT_FOUND
+      - type: output-contains
+        config:
+          substring: NOT_FOUND
+      - type: diff-empty
+  - name: decodes-pointer-escapes
+    prompt: >-
+      Use json-configuration and its MCP tools to retrieve /a~1b/~0key/1 from
+      {"a/b":{"~key":[10,20]}}. Report the actual value. Don't edit files.
+    tags:
+      assets:
+        - skill:json-configuration/json-configuration
+        - mcp:json-configuration/json-configuration/get_json_value
+      control: positive
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required: [json-configuration]
+      - type: tool-calls
+        config:
+          required:
+            - name: '(^|[./_-])get_json_value$'
+              args:
+                pointer: ^/a~1b/~0key/1$
+              result: '"value"\s*:\s*20'
+      - type: output-contains
+        config:
+          substring: "20"
+      - type: diff-empty
+  - name: ignores-unrelated-question
+    prompt: What is the capital of France? Reply with only the city name.
+    tags:
+      assets: skill:json-configuration/json-configuration
+      control: negative
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed: [json-configuration]
+      - type: output-contains
+        config:
+          substring: Paris
+      - type: diff-empty
+scoring:
+  threshold: 1

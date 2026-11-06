@@ -1,0 +1,8 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "json-configuration",
+  "version": "0.1.7",
+  "description": "Validate JSON and retrieve configuration values with a local MCP server.",
+  "license": "MIT",
+  "keywords": ["json", "configuration", "mcp"]
+}

@@ -1,0 +1,8 @@
+Agent Plugins 1.0.0 schemas
+Source: https://agent-plugins.org/schemas/1.0.0/plugin.schema.json
+Source: https://agent-plugins.org/schemas/1.0.0/mcp.schema.json
+Project: https://github.com/agentplugins/agent-plugins-spec
+
+Schemas are software material licensed under Apache-2.0 by the Agent Plugins
+project. See LICENSE-APACHE-2.0.txt and the upstream LICENSE.md.
+These copies have formatting changes only; schema values are unchanged.

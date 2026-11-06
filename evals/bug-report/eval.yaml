@@ -1,0 +1,155 @@
+name: bug-report-behavior
+description: Actual skill activation, on-demand template choice, faithful report facts, and clarification boundaries.
+type: capability
+defaults:
+  executor: copilot-sdk
+  model: gpt-5.4-mini
+  timeout: 2m
+  runs: 1
+agent_environment:
+  skills:
+    - ../../plugins/bug-report/skills/bug-report
+grading_environment:
+  files:
+    - src: ../graders
+      dest: .grading
+stimuli:
+  - name: bug-report-ui-template
+    prompt: >-
+      Turn these notes into a bug report in chat. Open Settings, switch Theme to
+      Dark, then reload. Expected: Dark stays selected. Actual: Theme resets to
+      Light. No environment details were supplied. Do not inspect project files,
+      edit anything, diagnose the cause, or submit an issue.
+    tags:
+      assets: skill:bug-report/bug-report
+      suite: smoke
+      control: positive
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required: [bug-report]
+      - type: tool-calls
+        config:
+          required:
+            - name: ".*"
+              read_only: true
+              pattern: 'templates[/\\]+ui\.md$'
+          disallowed:
+            - '^(bash|powershell|shell|create|edit|apply_patch|task)$'
+            - name: ".*"
+              read_only: true
+              pattern: 'templates[/\\]+cli\.md$'
+      - type: program
+        config:
+          program: node
+          args: [.grading/bug-report.mjs, ui]
+      - type: diff-empty
+  - name: bug-report-cli-template
+    prompt: >-
+      Draft a bug report in chat: run `acme sync --dry-run` in an empty folder.
+      Expected: no files change. Actual: creates cache.db and prints `created cache.db`.
+      Exit code 0. No tool version or OS/shell details are available.
+      Do not run the command, inspect project files, or submit an issue.
+    tags:
+      assets: skill:bug-report/bug-report
+      control: positive
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required: [bug-report]
+      - type: tool-calls
+        config:
+          required:
+            - name: ".*"
+              read_only: true
+              pattern: 'templates[/\\]+cli\.md$'
+          disallowed:
+            - '^(bash|powershell|shell|create|edit|apply_patch|task)$'
+            - name: ".*"
+              read_only: true
+              pattern: 'templates[/\\]+ui\.md$'
+      - type: program
+        config:
+          program: node
+          args: [.grading/bug-report.mjs, cli]
+      - type: diff-empty
+  - name: bug-report-missing-reproduction
+    prompt: >-
+      Draft a bug report. Expected: Submit saves the form. Actual: nothing happens.
+      I haven't recorded how to reproduce it. No human is available for an
+      interactive answer now; return the focused question or blocker in chat.
+    tags:
+      assets: skill:bug-report/bug-report
+      control: negative
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required: [bug-report]
+      - type: tool-calls
+        config:
+          disallowed:
+            - '^(bash|powershell|shell|create|edit|apply_patch|task)$'
+            - name: ".*"
+              read_only: true
+              pattern: 'templates[/\\]+(?:ui|cli)\.md$'
+      - type: program
+        config:
+          program: node
+          args: [.grading/bug-report.mjs, clarify]
+      - type: diff-empty
+  - name: bug-report-redacts-example-credential
+    prompt: >-
+      Draft a CLI bug report in chat. In an empty folder run
+      `acme fetch --token EXAMPLE_SECRET_DO_NOT_USE --dry-run`.
+      Expected: prints a fetch plan without changing files. Actual output:
+      `authentication failed for EXAMPLE_SECRET_DO_NOT_USE`. Exit code: 23.
+      The token is a deliberately fake fixture but must still be redacted.
+      No tool version or OS/shell details are available. Do not execute the command.
+    tags:
+      assets: skill:bug-report/bug-report
+      control: negative
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required: [bug-report]
+      - type: tool-calls
+        config:
+          required:
+            - name: ".*"
+              read_only: true
+              pattern: 'templates[/\\]+cli\.md$'
+          disallowed:
+            - '^(bash|powershell|shell|create|edit|apply_patch|task)$'
+            - name: ".*"
+              read_only: true
+              pattern: 'templates[/\\]+ui\.md$'
+      - type: program
+        config:
+          program: node
+          args: [.grading/bug-report.mjs, redact]
+      - type: diff-empty
+  - name: bug-report-does-not-trigger-for-explanation
+    prompt: >-
+      Explain why `add(a, b) { return a - b; }` gives the wrong sum.
+      Answer in chat only; don't draft a report or edit files.
+    tags:
+      assets: skill:bug-report/bug-report
+      control: negative
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed: [bug-report]
+      - type: tool-calls
+        config:
+          disallowed: ['^(bash|powershell|shell|create|edit|apply_patch|task)$']
+      - type: output-matches
+        config:
+          pattern: '(?i:subtract|subtraction|minus)'
+      - type: diff-empty
+scoring:
+  threshold: 1

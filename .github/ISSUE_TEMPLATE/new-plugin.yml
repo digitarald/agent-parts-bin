@@ -1,0 +1,80 @@
+name: New plugin
+description: Propose a plugin for this marketplace before building it.
+title: "New plugin: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Agreeing on scope and risk first saves rework. See CONTRIBUTING.md for what a complete plugin includes.
+  - type: input
+    id: name
+    attributes:
+      label: Plugin name
+      description: Lowercase letters, digits, and hyphens.
+      placeholder: release-notes
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow
+      description: What task does it help with, and who uses it? Give a realistic request someone would type.
+    validations:
+      required: true
+  - type: checkboxes
+    id: components
+    attributes:
+      label: Components
+      description: Pick everything the plugin will ship.
+      options:
+        - label: Skill
+        - label: Custom agent
+        - label: MCP server
+        - label: Hook
+        - label: Slash command
+        - label: Rules
+        - label: LSP server
+        - label: Canvas or SDK extension
+        - label: Remote reference to a plugin in another repository
+  - type: textarea
+    id: runs
+    attributes:
+      label: What runs, and when
+      description: Hooks and the events they run on, MCP servers, extensions, and scripts. Hooks and MCP servers run code on every installer's machine. Write "none" if it's only skills or agents.
+    validations:
+      required: true
+  - type: textarea
+    id: access
+    attributes:
+      label: Files, network, and credentials
+      description: Which files it reads or writes, which hosts it contacts, and which credentials or tokens it uses and where they come from. Write "none" for each that doesn't apply.
+    validations:
+      required: true
+  - type: textarea
+    id: data
+    attributes:
+      label: Data handling
+      description: What data it keeps, where, and for how long, and what it sends to the model, such as file contents or tool results. See docs/security.md.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and remote sources
+      description: New npm packages, their licenses, and any install scripts. For a remote plugin, the repository, path, and the commit sha you reviewed.
+    validations:
+      required: false
+  - type: textarea
+    id: evals
+    attributes:
+      label: How we'll know it works
+      description: Describe a positive eval case and a request that must not trigger it.
+    validations:
+      required: true
+  - type: input
+    id: owner
+    attributes:
+      label: Owner
+      description: Who will maintain it?
+    validations:
+      required: true

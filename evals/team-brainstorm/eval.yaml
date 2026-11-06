@@ -1,0 +1,112 @@
+name: team-brainstorm-behavior
+description: Model collaboration through the real extension's headless SDK contract, plus honest chat fallback.
+type: capability
+defaults:
+  executor: copilot-sdk
+  model: gpt-5.4-mini
+  timeout: 3m
+  runs: 1
+agent_environment:
+  skills:
+    - ../../plugins/team-brainstorm/skills/team-brainstorm
+grading_environment:
+  files:
+    - src: ../graders
+      dest: .grading
+stimuli:
+  - name: brainstorm-preserves-and-moves-session-notes
+    turns:
+      - >-
+        Use team-brainstorm and the provided brainstorm-host tools to brainstorm
+        a small onboarding plan. This is a headless SDK-contract board; no native
+        UI window is requested. Keep the existing note. Add exactly two short
+        ideas in the ideas column, then read the board and ask one focused question
+        in chat for me to answer next. Don't create a complete plan or implement
+        anything. Use a stable instance handle.
+      - >-
+        Keep the two ideas. Move the original note "Keep onboarding simple" to
+        the next column using its existing ID, without changing its text. Don't
+        add or delete notes. Read the board again and summarize the current state.
+        Don't implement anything or save files.
+    agent_environment:
+      mcpServers:
+        brainstorm-host:
+          type: stdio
+          command: node
+          args:
+            - '${CANVAS_HOST}'
+            - '${BRAINSTORM_EXTENSION}'
+            # Every session starts with one synthetic note.
+            - --seed
+            - '[{"action":"save_note","input":{"text":"Keep onboarding simple","column":"ideas"}}]'
+    tags:
+      assets:
+        - skill:team-brainstorm/team-brainstorm
+        - extension:team-brainstorm/brainstorm
+      suite: smoke
+      control: positive
+      boundary: headless-sdk-contract
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required: [team-brainstorm]
+      - type: program
+        config:
+          program: node
+          args: [.grading/brainstorm.mjs, board]
+      - type: diff-empty
+  - name: brainstorm-falls-back-to-chat
+    prompt: >-
+      Use team-brainstorm to explore improving team onboarding. If this host
+      cannot present the board, explain the limitation and continue in chat.
+      Give two short bullet ideas and finish with one question I can answer
+      later. Don't implement, save files, or wait for an interactive answer.
+    tags:
+      assets: skill:team-brainstorm/team-brainstorm
+      suite: smoke
+      control: positive
+      boundary: no-canvas
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          required: [team-brainstorm]
+      - type: program
+        config:
+          program: node
+          args: [.grading/brainstorm.mjs, fallback]
+      - type: diff-empty
+  - name: brainstorm-does-not-trigger-for-arithmetic
+    prompt: What is two plus two? Reply with only the digit, without planning or using a board.
+    agent_environment:
+      mcpServers:
+        brainstorm-host:
+          type: stdio
+          command: node
+          args:
+            - '${CANVAS_HOST}'
+            - '${BRAINSTORM_EXTENSION}'
+            # Every session starts with one synthetic note.
+            - --seed
+            - '[{"action":"save_note","input":{"text":"Keep onboarding simple","column":"ideas"}}]'
+    tags:
+      assets:
+        - skill:team-brainstorm/team-brainstorm
+        - extension:team-brainstorm/brainstorm
+      control: negative
+      boundary: headless-sdk-contract
+    graders:
+      - type: completed
+      - type: skill-invocation
+        config:
+          disallowed: [team-brainstorm]
+      - type: tool-calls
+        config:
+          disallowed: ['(^|[./_-])(list_canvas_capabilities|open_canvas|invoke_canvas_action)$']
+      - type: output-matches
+        config:
+          pattern: '^\s*4\s*$'
+      - type: diff-empty
+scoring:
+  threshold: 1

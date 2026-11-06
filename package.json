@@ -1,0 +1,38 @@
+{
+  "name": "plugin-marketplace-starter",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22.14.0" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:check": "node scripts/build.mjs --check",
+    "check": "node scripts/typecheck.mjs && node scripts/validate.mjs",
+    "test": "node --test",
+    "verify": "npm run check && npm run build:check && npm test && npm run eval:check && npm run eval:lint",
+    "eval:check": "node scripts/validate-evals.mjs",
+    "eval:lint": "node scripts/evals.mjs lint",
+    "eval:smoke": "node scripts/evals.mjs eval --suite smoke",
+    "eval": "node scripts/evals.mjs eval --suite full",
+    "eval:grade": "node scripts/evals.mjs grade",
+    "eval:report": "node scripts/eval-report.mjs",
+    "eval:list": "node scripts/evals.mjs eval --list",
+    "new-plugin": "node scripts/new-plugin.mjs",
+    "remove-plugin": "node scripts/remove-plugin.mjs",
+    "remove-example": "node scripts/remove-plugin.mjs --example",
+    "rename-marketplace": "node scripts/rename-marketplace.mjs",
+    "check-remotes": "node scripts/check-remotes.mjs"
+  },
+  "devDependencies": {
+    "@github/copilot": "1.0.98",
+    "@microsoft/vally-cli": "0.19.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@types/node": "24.19.2",
+    "ajv": "8.20.0",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2",
+    "yaml": "2.9.1",
+    "zod": "4.6.7"
+  }
+}

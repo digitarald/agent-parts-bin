@@ -1,0 +1,11 @@
+node_modules/
+.DS_Store
+*.log
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+vally-results/
+.vally/
+# Isolated Copilot homes from local install checks.
+.copilot-home/

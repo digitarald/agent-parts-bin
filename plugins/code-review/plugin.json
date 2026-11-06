@@ -1,0 +1,8 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "code-review",
+  "version": "0.1.4",
+  "description": "Challenge assumptions and find material defects using a read-only reviewer.",
+  "license": "MIT",
+  "keywords": ["code-review", "correctness", "agents"]
+}

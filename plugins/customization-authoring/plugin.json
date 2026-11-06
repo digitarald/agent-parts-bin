@@ -1,0 +1,8 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "customization-authoring",
+  "version": "0.1.5",
+  "description": "Create focused skills with positive and negative behavioral evals.",
+  "license": "MIT",
+  "keywords": ["authoring", "skills", "evals"]
+}
