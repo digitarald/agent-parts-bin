@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "model": "microsoft-decision-1",
+  "answers": {
+    "repeat_contact": {
+      "type": "noul",
+      "noul": 0.9975273774362788,
+      "value": true,
+      "threshold": 0.5
+    },
+    "team": {
+      "type": "choice",
+      "choice": "engineering",
+      "confidence": 0.9896452683784187,
+      "probabilities": {
+        "billing": 0.0016918596903049612,
+        "engineering": 0.9930968455856125,
+        "unknown": 0.005211294724082585
+      },
+      "value": "engineering"
+    },
+    "severity": {
+      "type": "score",
+      "score": 2.908938824546053,
+      "confidence": 0.8832042398668255,
+      "legend": {
+        "0": "Cosmetic",
+        "1": "Minor",
+        "2": "Major",
+        "3": "Critical"
+      },
+      "probabilities": {
+        "0": 0.0007342408698799541,
+        "1": 0.0019958736143066416,
+        "2": 0.0848667056156944,
+        "3": 0.9124031799001191
+      },
+      "value": 2.908938824546053
+    }
+  },
+  "usage": {
+    "input_tokens": 121,
+    "output_tokens": 3
+  },
+  "latency_ms": 686.5
+}

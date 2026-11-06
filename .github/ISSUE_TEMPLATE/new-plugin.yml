@@ -1,11 +1,11 @@
 name: New plugin
-description: Propose a plugin for this marketplace before building it.
+description: Propose a rough plugin experiment. Evals are optional.
 title: "New plugin: "
 body:
   - type: markdown
     attributes:
       value: |
-        Agreeing on scope and risk first saves rework. See CONTRIBUTING.md for what a complete plugin includes.
+        Describe the experiment and its risks. Broken or unevaluated ideas are welcome. See CONTRIBUTING.md.
   - type: input
     id: name
     attributes:
@@ -67,10 +67,10 @@ body:
   - type: textarea
     id: evals
     attributes:
-      label: How we'll know it works
-      description: Describe a positive eval case and a request that must not trigger it.
+      label: What you've tried
+      description: Optional. Describe manual checks, known failures, or evals. "Not tested" is fine.
     validations:
-      required: true
+      required: false
   - type: input
     id: owner
     attributes:

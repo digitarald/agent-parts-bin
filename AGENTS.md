@@ -7,6 +7,12 @@ place; don't duplicate them here.
 
 ## Agent-specific rules
 
+- This is a personal experiment bin maintained by `@digitarald`, not a
+  curated recommendation. Describe risks and known failures honestly.
+  Dependable plugins belong in `digitarald/agent-toolbelt`.
+- Behavioral evals are optional here. `npm run verify` deliberately omits
+  eval-coverage and eval-lint gates. Do not add a publishing requirement for
+  evals or imply that passing static checks makes an experiment safe.
 - Scaffold a plugin with `npm run new-plugin -- <name>` (with `--with agent`,
   `mcp`, `hook`, or `extension`, and `--no-skill` when it has no skill), remove
   one with `npm run remove-plugin -- <name>` (`remove-example` for the shipped
@@ -54,9 +60,9 @@ place; don't duplicate them here.
   in step, and write "not verified" where they don't.
 - Preserve coverage when replacing an example; don't delete tests just to
   make validation pass.
-- Keep evals outside plugins, grouped by workflow under `evals/`. Update the
-  corresponding evals whenever adding or changing an in-repo skill, agent, hook,
-  extension, or MCP tool. Don't replace real skill, tool, or agent invocation
+- Keep any optional evals outside plugins, grouped by workflow under `evals/`.
+  If a changed component has evals, update them or document that they are stale.
+  Don't replace real skill, tool, or agent invocation
   assertions with output keywords. Keep eval-only transports and development
   dependencies outside `plugins/`. Headless contract results aren't proof of
   native canvas rendering.

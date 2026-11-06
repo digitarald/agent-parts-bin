@@ -14,9 +14,12 @@ project you agree to abide by its terms.
 
 ## Before you start
 
+- This is `@digitarald`'s personal experiment bin. Broken ideas are welcome;
+  hidden risks and invented reliability claims aren't. Useful, evaluated
+  plugins can graduate to [Agent Toolbelt](https://github.com/digitarald/agent-toolbelt).
 - Install Node.js 22.14 or newer and run `npm ci`.
-- Open an issue with the **New plugin** form before building a new plugin, so
-  reviewers can agree on scope and risk first.
+- The **New plugin** issue form is available to discuss an experiment's scope
+  and risks, but an issue is not required for personal experiments.
 - Use only synthetic data in examples, fixtures, and evals. Never commit secrets,
   tokens, or private organizational code.
 
@@ -24,8 +27,8 @@ project you agree to abide by its terms.
 
 Start a new plugin with `npm run new-plugin -- <name>`, optionally with
 `--with agent`, `--with mcp`, `--with hook`, `--with extension`, or
-`--no-skill`. It creates the files and registrations below, including an eval
-that meets the coverage rules, so you only replace the scaffolded content. See
+`--no-skill`. It creates the files and registrations below, including optional
+eval scaffolding. Replace the scaffolded content with your experiment. See
 [Add a plugin](README.md#add-a-plugin).
 
 Change these together in one pull request:
@@ -48,16 +51,14 @@ Change these together in one pull request:
    a remote plugin there.
 4. **[.vally.yaml](.vally.yaml)**: list the plugin's `skills` directory under
    `paths.skills`, and add any path an eval needs under `params`.
-5. **Evals** under `evals/<name>/`: a positive case with invocation and outcome
-   assertions for every skill, agent, hook, extension, and MCP tool, a smoke
-   case, and a negative control. See [Evals](docs/evals.md#write-an-eval).
+5. **Optional evals** under `evals/<name>/`: no behavioral evals are required
+   for publication here. If you add them, use real invocation and outcome
+   assertions and describe what you actually ran.
+   See [Evals](docs/evals.md#write-an-eval).
 6. **Tests** under `test/` for code you add, such as servers, hooks, and graders.
    Name support files after the plugin, such as `test/<name>-hook.test.mjs` and
    `evals/graders/<name>.mjs`, so `npm run remove-plugin` removes them with it.
 7. **Related docs**: the plugin's README, and
-   <!-- examples -->
-   for a shipped example, its section in [Examples](docs/examples.md), and
-   <!-- /examples -->
    anything else that describes what you changed. Don't hard-code suite sizes;
    `npm run eval:check` prints them.
 8. **Generated files**: if you changed `plugins/*/src/` or `evals/graders/src/`,
@@ -71,6 +72,8 @@ npm run verify
 ```
 
 `verify` is model-free and must pass. CI runs it on Linux, Windows, and macOS.
+It checks structure, types, generated files, and tests, not eval coverage or
+eval linting. Passing it does not establish usefulness or safety.
 It reports every problem at once as `path: message`, and warns about leftovers
 such as mentions of a plugin that no longer exists. The test step takes about a
 minute.
@@ -99,6 +102,9 @@ any access requirement. Local checks never download or run upstream code; run
 
 ## Paid evals
 
+Evals are optional. The commands below are available when explicitly requested,
+not prerequisites for publishing an experiment.
+
 `npm run eval:smoke`, `npm run eval`, and the **Behavioral evals** workflow run
 real Copilot sessions and spend AI credits. Run only the plugins you changed.
 `--plugin` selects every spec for a plugin, including nested ones such as
@@ -119,7 +125,8 @@ to get a pass.
 
 ## Review
 
-Reviewers look for a clear workflow, honest descriptions, least-privilege tool
-lists, hooks that never make permission decisions, MCP servers that start
-offline without credentials, and evals that would fail on a wrong outcome.
+Reviewers look for an understandable experiment, honest risk descriptions,
+least-privilege tool lists, hooks that never make permission decisions, and
+self-contained MCP servers. If evals are supplied, they should fail on a wrong
+outcome; their presence alone is not proof of quality.
 Report security problems privately as described in [SECURITY.md](SECURITY.md).

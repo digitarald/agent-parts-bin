@@ -1,0 +1,26 @@
+{
+  "state": {
+    "message": "Checkout is down for all customers. This is my third report.",
+    "prior_reports": 2
+  },
+  "questions": {
+    "repeat_contact": {
+      "type": "noul",
+      "instructions": "Has the customer reported this issue before?"
+    },
+    "team": {
+      "type": "choice",
+      "instructions": "Which team should handle the issue?",
+      "criteria": {
+        "engineering": "Bugs, errors, and outages",
+        "billing": "Charges, invoices, and refunds",
+        "unknown": "Insufficient evidence to assign a team"
+      }
+    },
+    "severity": {
+      "type": "score",
+      "instructions": "How severe is the incident?",
+      "criteria": ["Cosmetic", "Minor", "Major", "Critical"]
+    }
+  }
+}

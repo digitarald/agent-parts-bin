@@ -1,15 +1,2 @@
-# Code owners review changes to the paths below. Replace these examples with
-# real GitHub users or teams before you ship, then require code owner review in
-# a branch protection rule or ruleset. This file alone doesn't enforce review.
-# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
-#
-# *                              @your-org/ai-customizations
-# /.github/workflows/            @your-org/ai-customizations-admins
-# /.github/copilot/settings.json @your-org/ai-customizations-admins
-# /scripts/                      @your-org/ai-customizations-admins
-# /evals/                        @your-org/ai-customizations
-# /marketplace.json              @your-org/ai-customizations-admins
-# /plugins/<plugin-with-hooks>/  @your-org/ai-customizations-admins
-
-# This repository is maintained by:
-* @github/code-ai-evals
+# This file identifies the maintainer; it does not enforce review.
+* @digitarald

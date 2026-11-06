@@ -15,8 +15,11 @@ npm run eval                           # every case, costs more
 npm run eval:report -- --suite full
 ```
 
-`verify` runs source checks, the generated-file freshness check, tests, the
-eval coverage check, and strict Vally linting. It never calls a model.
+Evals are optional in Agent Parts Bin. `verify` runs source checks, the
+generated-file freshness check, and model-free tests. It does not require eval
+coverage or run strict Vally linting. To check optional evals, run
+`npm run eval:check` and `npm run eval:lint` explicitly. Those commands apply
+the template's full coverage rules and may reject unevaluated experiments.
 `eval:smoke` and `eval` run real Copilot sessions. Authenticate using the
 [Vally runtime setup](https://microsoft.github.io/vally/get-started/runtime-setup/).
 The baseline model is `gpt-5.4-mini`; override it with `--model MODEL_ID`.

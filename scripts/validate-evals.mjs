@@ -226,6 +226,12 @@ const negativeHint = (asset) => asset.kind === "mcp"
   ? `a tool-calls rule that requires a real ${asset.name} call with an asserted result or error, or one that disallows ${asset.name}`
   : `one of ${asset.kind === "skill" ? `a skill-invocation grader with config.disallowed: [${asset.name}], ` : ""}tool-calls, ${outcomeGraders.join(", ")}`;
 
+export function assetsWithEvals(assets, specs) {
+  const ids = new Set(specs.flatMap(({ spec }) =>
+    spec.stimuli.flatMap((stimulus) => list(effectiveTags(spec, stimulus).assets))));
+  return assets.filter((asset) => ids.has(asset.id));
+}
+
 export function checkCoverage(assets, specs, { directory = root, suites = new Set(["smoke"]), smokeSuite = "smoke" } = {}) {
   const problems = new Problems(directory);
   if (!suites.has(smokeSuite)) {

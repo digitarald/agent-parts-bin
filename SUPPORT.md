@@ -1,15 +1,12 @@
 # Support
 
-## How to file issues and get help
+This is a personal experiment bin maintained by [@digitarald](https://github.com/digitarald),
+not a GitHub-supported product. Experiments may be broken, abandoned, or
+removed. There are no support or compatibility promises.
 
-This project uses GitHub issues to track bugs and feature requests. Please search the existing issues before filing new issues to avoid duplicates. For new issues, file your bug or feature request as a new issue.
+If you want to share a finding, use the
+[issue tracker](https://github.com/digitarald/agent-parts-bin/issues). Include
+the experiment, host, what you tried, and what happened. Leave out secrets and
+private code.
 
-For help or questions about using this project, please open an issue.
-
-<!-- template-only -->
-The plugin marketplace starter is under active development and maintained by GitHub staff and the community. We will do our best to respond to support, feature requests, and community questions in a timely manner.
-<!-- /template-only -->
-
-## GitHub Support Policy
-
-Support for this project is limited to the resources listed above.
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).

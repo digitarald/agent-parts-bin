@@ -2,6 +2,11 @@
 
 Two workflows ship with the template.
 
+Agent Parts Bin keeps behavioral evals optional. Its `npm run verify` checks
+types, manifests, generated files, and model-free tests, without the template's
+eval-coverage and eval-lint gates. A green check is not evidence that an
+experiment works or is safe.
+
 ## Deterministic checks
 
 [validate.yml](../.github/workflows/validate.yml) runs `npm ci` and

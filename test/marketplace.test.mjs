@@ -6,7 +6,7 @@ import { join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { checkGenerated, generate, portable, writeGenerated } from "../scripts/build.mjs";
 import { contained, frontmatter, parseYaml, readCatalog, readVallyConfig } from "../scripts/catalog.mjs";
-import { checkCoverage, discoverAssets, readEvals, root, suiteTags } from "../scripts/validate-evals.mjs";
+import { assetsWithEvals, checkCoverage, discoverAssets, readEvals, root, suiteTags } from "../scripts/validate-evals.mjs";
 import { hookEvents, markdownLinks, pluginMentions, staleReferenceWarnings, validateMcpConfig, validateRepository } from "../scripts/validate.mjs";
 
 async function names(path) {
@@ -30,7 +30,8 @@ test("discovery covers every local skill, agent, hook, extension, and advertised
   }
   assert.deepEqual(assets.filter((asset) => asset.kind !== "mcp").map((asset) => asset.id).sort(), expected.sort());
   for (const asset of assets.filter((item) => item.kind === "mcp")) assert.match(asset.id, /^mcp:[^/]+\/[^/]+\/[^/]+$/);
-  checkCoverage(assets, await readEvals(), { suites: suiteTags(await readVallyConfig(root)) });
+  const specs = await readEvals();
+  checkCoverage(assetsWithEvals(assets, specs), specs, { suites: suiteTags(await readVallyConfig(root)) });
 });
 
 test("the JSON configuration example advertises its two real MCP tools", { skip: !existsSync(resolve(root, "plugins/json-configuration")) }, async () => {
@@ -65,6 +66,9 @@ test("coverage rejects unknown, unloaded, invocation-free, negative-free, and sm
   };
   assert.doesNotThrow(() => checkCoverage(only, [author]));
   assert.throws(() => checkCoverage(only, []), /missing positive/);
+  assert.doesNotThrow(() => checkCoverage(assetsWithEvals(only, []), []));
+  const negativeOnly = modify((spec) => { spec.stimuli = [spec.stimuli[1]]; });
+  assert.throws(() => checkCoverage(assetsWithEvals(only, negativeOnly), negativeOnly), /missing positive/);
   assert.throws(() => checkCoverage(only, modify((spec) => { spec.stimuli[0].tags.assets = "skill:unknown/unknown"; })), /unknown asset/);
   assert.throws(() => checkCoverage(only, modify((spec) => { spec.agent_environment.skills = []; })), /load the actual skill/);
   assert.throws(() => checkCoverage(only, modify((spec) => { spec.stimuli[0].graders = [{ type: "output-contains", config: { substring: "ok" } }]; })), /skill invocation/);

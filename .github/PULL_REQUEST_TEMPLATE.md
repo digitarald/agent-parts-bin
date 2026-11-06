@@ -1,6 +1,6 @@
 ## What and why
 
-<!-- Describe the change. Link the issue it addresses, if there is one; a new plugin should have one. -->
+<!-- Describe the experiment. Link an issue if there is one. -->
 
 ## Checklist
 
@@ -9,7 +9,7 @@
 - [ ] For each changed plugin, bumped `version` in `plugin.json` and `marketplace.json`, and added a `CHANGELOG.md` entry. Any change under `plugins/<name>/` needs one.
 - [ ] Kept the catalog description identical to the manifest, and the plugin enabled in `.github/copilot/settings.json`.
 - [ ] Updated `.vally.yaml` `paths.skills` and `params` for added, renamed, or removed plugins.
-- [ ] Added or updated evals with invocation and outcome assertions, smoke coverage, and a negative control.
+- [ ] Documented what was checked, known failures, and any untested behavior. Evals are optional.
 - [ ] Updated the plugin's README and any other docs that describe what changed.
 - [ ] Ran `npm run build` if sources of generated files changed, and committed the `dist/` output.
 - [ ] `npm run verify` passes.

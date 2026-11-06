@@ -7,7 +7,8 @@ import { join, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
 import { parse, stringify } from "yaml";
-import { root } from "../scripts/validate-evals.mjs";
+import { assetsWithEvals, checkCoverage, discoverAssets, readEvals, root, suiteTags } from "../scripts/validate-evals.mjs";
+import { readVallyConfig } from "../scripts/catalog.mjs";
 import { examples } from "../scripts/examples.mjs";
 import { pruneMarkdown } from "../scripts/remove-plugin.mjs";
 
@@ -64,15 +65,19 @@ async function scratchRepository(t) {
   return directory;
 }
 
-// The same model-free checks as npm run verify, run inside a scratch copy.
+// Verify scratch copies and any optional evals the adoption fixtures create.
 async function verify(directory, { tests = true } = {}) {
   await ok(directory, "scripts/typecheck.mjs");
   const validated = await ok(directory, "scripts/validate.mjs");
   // node_modules is linked into the copy, so this also proves the committed
   // bundles don't depend on where node_modules lives.
   await ok(directory, "scripts/build.mjs", "--check");
-  const coverage = await ok(directory, "scripts/validate-evals.mjs");
-  await ok(directory, "scripts/evals.mjs", "lint");
+  const config = await readVallyConfig(directory);
+  const specs = await readEvals(directory, config);
+  const assets = assetsWithEvals(await discoverAssets(directory), specs);
+  checkCoverage(assets, specs, { directory, suites: suiteTags(config) });
+  const coverage = assets.map((asset) => asset.id);
+  if (specs.length) await ok(directory, "scripts/evals.mjs", "lint");
   if (tests) {
     const files = (await readdir(join(directory, "test"))).filter((name) => name.endsWith(".test.mjs") && !outerOnly.has(name))
       .map((name) => `test/${name}`);
@@ -120,10 +125,10 @@ test("a team can rename the marketplace, drop examples and the remote entry, and
   const { validated, coverage } = await verify(directory);
   assert.match(validated, /0 remote references/);
   assert.doesNotMatch(validated, /name is still the template's/);
-  assert.match(coverage, new RegExp(`skill:${fixture}-tools/${fixture}-tools`));
-  assert.match(coverage, new RegExp(`agent:${fixture}-tools/${fixture}-tools-specialist`));
-  assert.match(coverage, new RegExp(`mcp:${fixture}-tools/${fixture}-tools/echo`));
-  for (const name of dropped) assert.doesNotMatch(coverage, new RegExp(`:${name}/`));
+  assert.ok(coverage.includes(`skill:${fixture}-tools/${fixture}-tools`));
+  assert.ok(coverage.includes(`agent:${fixture}-tools/${fixture}-tools-specialist`));
+  assert.ok(coverage.includes(`mcp:${fixture}-tools/${fixture}-tools/echo`));
+  for (const name of dropped) assert.ok(coverage.every((id) => !id.includes(`:${name}/`)));
   const params = JSON.stringify(parse(await readFile(join(directory, ".vally.yaml"), "utf8")).params ?? {});
   for (const name of dropped) assert.doesNotMatch(params, new RegExp(name));
 
@@ -182,7 +187,7 @@ test("an empty or remote-only marketplace passes verify, and new plugins scaffol
   }
   assert.ok((await json(join(directory, "marketplace.json"))).plugins.every((entry) => typeof entry.source === "string"));
   const empty = await verify(directory, { tests: false });
-  if (!ownPlugins.length) assert.match(empty.coverage, /nothing to cover/);
+  if (!ownPlugins.length) assert.deepEqual(empty.coverage, []);
   // The setup steps about examples go with them, and the list stays numbered in order.
   const setup = (await readFile(join(directory, "README.md"), "utf8")).match(/## Make it yours\n[\s\S]*?\n## /)?.[0];
   if (setup) {
@@ -197,7 +202,7 @@ test("an empty or remote-only marketplace passes verify, and new plugins scaffol
   await newPlugin(directory, skill);
   const scaffolded = await verify(directory);
   for (const id of [`hook:${hook}/postToolUse`, `extension:${canvas}/${canvas}`, `skill:${canvas}/${canvas}`, `skill:${skill}/${skill}`]) {
-    assert.match(scaffolded.coverage, new RegExp(id));
+    assert.ok(scaffolded.coverage.includes(id));
   }
   const listed = await readFile(join(directory, "README.md"), "utf8");
   if (listed.includes("<!-- plugin-table -->")) {

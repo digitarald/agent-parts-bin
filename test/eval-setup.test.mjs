@@ -5,16 +5,16 @@ import { tmpdir } from "node:os";
 import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { parse } from "yaml";
-import { checkCoverage, discoverAssets, readEvals, root, suiteTags } from "../scripts/validate-evals.mjs";
+import { assetsWithEvals, checkCoverage, discoverAssets, readEvals, root, suiteTags } from "../scripts/validate-evals.mjs";
 import { evalFilenameMatcher, parseTagSelectors, readCatalog, readVallyConfig } from "../scripts/catalog.mjs";
 import { defaultRuntime, pluginDirectories, runtimeArguments, runtimeEntry } from "../scripts/eval-runtime.js";
 import { evalParams, isPathParam, pathParams, reportArguments, runtimeBridge, runtimeEnvironment, vallyArguments, vallyCliPath, vallySelection } from "../scripts/evals.mjs";
 import { expectedCases, render, summarize } from "../scripts/eval-report.mjs";
 
-test("all local assets have positive, smoke, and negative coverage", async () => {
+test("optional evals cover the assets they claim to evaluate", async () => {
   const config = await readVallyConfig(root);
-  const assets = await discoverAssets();
   const specs = await readEvals(root, config);
+  const assets = assetsWithEvals(await discoverAssets(), specs);
   const { localPlugins } = await readCatalog(root);
   // A marketplace with no local plugins (only remote entries, or none yet) has nothing to cover.
   if (!assets.length) return assert.equal(checkCoverage(assets, specs, { suites: suiteTags(config) }), specs.flatMap(({ spec }) => spec.stimuli).length);
@@ -216,7 +216,8 @@ test("deterministic CI stays model-free, and opt-in behavioral CI runs the pinne
       }
     }
   }
-  assert.ok(manifest.scripts.verify.includes("eval:lint"));
+  assert.ok(!manifest.scripts.verify.includes("eval:check"));
+  assert.ok(!manifest.scripts.verify.includes("eval:lint"));
   assert.ok(manifest.scripts.verify.includes("build:check"));
   assert.ok(!manifest.scripts.verify.includes("eval:smoke"));
   assert.ok(!manifest.scripts.verify.includes("npm run eval "));

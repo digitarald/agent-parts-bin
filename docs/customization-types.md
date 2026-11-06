@@ -5,9 +5,6 @@ MCP servers, so other compatible clients can use them. Everything else is
 specific to Copilot and lives under `com.github.copilot/`, which other clients
 ignore, except VS Code's automation templates, which live in `automations/`. The [Copilot CLI plugin reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference#components)
 lists the official locations.
-<!-- examples -->
-[Examples](examples.md) shows which example demonstrates each type.
-<!-- /examples -->
 
 | Type | Location in a plugin | Use it for | `new-plugin` |
 |---|---|---|---|
