@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "decide",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Typed decisions for bounded classification, routing, and scoring through a user-configured Microsoft Foundry deployment.",
   "license": "MIT"
 }

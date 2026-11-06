@@ -45,6 +45,10 @@ class DecideTests(unittest.TestCase):
             "usage": {"input_tokens": 123, "output_tokens": 0},
         }
 
+    def test_configured_directory_does_not_require_a_user_home(self):
+        with patch.object(Path, "home", side_effect=RuntimeError("No user home")):
+            self.assertEqual(decide.config_path(), Path(self.temporary.name) / "decide" / "config.json")
+
     def test_batch_and_all_convenience_commands_build_api_shapes(self):
         invocations = [
             (["bool", "--question", "Is it down?", "--state", "Down"], "noul", None),

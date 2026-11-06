@@ -75,7 +75,9 @@ def human_terminal():
 
 
 def config_path():
-    return Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) / "decide" / "config.json"
+    configured = os.environ.get("XDG_CONFIG_HOME")
+    directory = Path(configured) if configured is not None else Path.home() / ".config"
+    return directory / "decide" / "config.json"
 
 
 def load_config():

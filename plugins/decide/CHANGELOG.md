@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- Honor `XDG_CONFIG_HOME` without resolving a home directory, including in
+  isolated Windows environments.
+
 ## 0.1.0
 
 - Package the Decide skill, standard-library Python CLI, synthetic fixtures,
