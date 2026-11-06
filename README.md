@@ -25,6 +25,33 @@ Looking for plugins I actually rely on? Try
 The starter's demo plugins have been removed. Decide is the first experiment;
 it has offline CLI tests, not behavioral evals or accuracy guarantees.
 
+### External plugins
+
+These are opt-in, SHA-pinned references to separate repositories. This
+marketplace's tests do not cover their behavior.
+
+| Plugin | Try it | Purpose |
+|---|---|---|
+| [Agent Reproach](https://github.com/digitarald/agent-reproach) | "Read the feedback and open the Agent Reproach inbox" | Local agent feedback tools and a compact review canvas. |
+
+Agent Reproach is public, MIT-licensed, and prebuilt. It requires Node.js 20+
+and a host that supplies `PLUGIN_DATA` to plugin MCPs; the graphical inbox also
+requires canvas support. It reads optional session metadata from a supplied
+session directory and writes reports and triage state locally. It makes no
+external network requests; choosing to investigate a report sends it into the
+current agent workflow. Reports and paths can contain sensitive information.
+Proactive reporting and compatibility across hosts are experimental.
+
+The repository overlay does **not** enable it. After reviewing the source:
+
+```sh
+copilot plugin install agent-reproach@agent-parts-bin
+```
+
+Don't enable it alongside another Agent Reproach installation. See the
+[upstream storage and privacy notes](https://github.com/digitarald/agent-reproach#storage-and-privacy)
+and [remote plugin guide](docs/remote-plugins.md).
+
 ## Install plugins
 
 If you're comfortable with those risks, add the marketplace in Copilot CLI:

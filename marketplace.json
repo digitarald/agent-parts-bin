@@ -9,6 +9,19 @@
       "source": "./plugins/decide",
       "version": "0.1.1",
       "description": "Typed decisions for bounded classification, routing, and scoring through a user-configured Microsoft Foundry deployment."
+    },
+    {
+      "name": "agent-reproach",
+      "source": {
+        "source": "github",
+        "repo": "digitarald/agent-reproach",
+        "path": "plugin",
+        "ref": "v0.2.0",
+        "sha": "05a8416c6e110112ac27963b1c2a5effaf073001"
+      },
+      "version": "0.2.0",
+      "description": "Capture and review local feedback about agent skills, tools, MCPs, and instructions.",
+      "homepage": "https://github.com/digitarald/agent-reproach"
     }
   ]
 }
