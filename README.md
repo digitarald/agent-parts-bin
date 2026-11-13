@@ -21,9 +21,10 @@ Looking for plugins I actually rely on? Try
 |---|---|---|
 | None yet | | |
 | [decide](plugins/decide/) | "Use the decide skill to help with my task" | Typed decisions for bounded classification, routing, and scoring through a user-configured Microsoft Foundry deployment. |
+| [commit-attribution](plugins/commit-attribution/) | "Use the commit skill to commit my changes with attribution" | Requires Copilot attribution and records session/model trailers. Automatically installs a persistent Git hook dispatcher. |
 
-The starter's demo plugins have been removed. Decide is the first experiment;
-it has offline CLI tests, not behavioral evals or accuracy guarantees.
+The starter's demo plugins have been removed. These experiments have model-free
+tests, not behavioral evals or accuracy guarantees.
 
 ### External plugins
 
@@ -60,6 +61,7 @@ If you're comfortable with those risks, add the marketplace in Copilot CLI:
 copilot plugin marketplace add digitarald/agent-parts-bin
 copilot plugin marketplace browse agent-parts-bin
 copilot plugin install decide@agent-parts-bin
+copilot plugin install commit-attribution@agent-parts-bin
 ```
 
 Once plugins are listed, install only an experiment you've reviewed with

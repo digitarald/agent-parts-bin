@@ -93,8 +93,12 @@ The script writes a JSON object to stdout:
   sees it right after the tool output.
 
 The reference also documents `modifiedResult`, which replaces the result, and
-permission decisions for `preToolUse`. The hooks in this marketplace never
-return permission decisions and don't replace tool results.
+permission decisions for `preToolUse`. Formatter hooks here never return
+permission decisions or replace tool results. The
+[commit-attribution](../plugins/commit-attribution/README.md) guard is different:
+it modifies shell arguments to supply attribution context and can deny a call
+when setup fails. It also installs a persistent Git `commit-msg` dispatcher.
+Read its setup, restoration, and bypass limits before enabling it.
 
 ## A minimal hook
 

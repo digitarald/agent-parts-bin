@@ -7,11 +7,11 @@ import { fileURLToPath } from "node:url";
 
 export const root = fileURLToPath(new URL("../", import.meta.url));
 
-// TypeScript sources that tsconfig.json includes (plugins/**/*.ts).
+// TypeScript sources that tsconfig.json includes.
 export async function typeScriptSources(directory = root) {
   try {
     return (await readdir(resolve(directory, "plugins"), { recursive: true }))
-      .filter((path) => path.endsWith(".ts") && !path.split(/[\\/]/).includes("node_modules"));
+      .filter((path) => /\.(?:ts|mts)$/.test(path) && !path.split(/[\\/]/).includes("node_modules"));
   } catch (error) {
     if (error.code === "ENOENT") return [];
     throw error;

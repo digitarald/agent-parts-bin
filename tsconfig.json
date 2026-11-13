@@ -5,10 +5,12 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "allowJs": true,
     "noUncheckedIndexedAccess": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["plugins/**/*.ts"]
+  "include": ["plugins/**/*.ts", "plugins/**/*.mts"]
 }

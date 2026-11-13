@@ -8,6 +8,7 @@
     }
   },
   "enabledPlugins": {
-    "decide@agent-parts-bin": true
+    "decide@agent-parts-bin": true,
+    "commit-attribution@agent-parts-bin": true
   }
 }

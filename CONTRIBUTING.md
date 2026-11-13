@@ -126,7 +126,8 @@ to get a pass.
 ## Review
 
 Reviewers look for an understandable experiment, honest risk descriptions,
-least-privilege tool lists, hooks that never make permission decisions, and
-self-contained MCP servers. If evals are supplied, they should fail on a wrong
+least-privilege tool lists, formatter hooks that never make permission decisions,
+and self-contained MCP servers. Guard hooks must document their decisions,
+persistent changes, and bypass limits. If evals are supplied, they should fail on a wrong
 outcome; their presence alone is not proof of quality.
 Report security problems privately as described in [SECURITY.md](SECURITY.md).

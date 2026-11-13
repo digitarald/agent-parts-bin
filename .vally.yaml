@@ -2,7 +2,7 @@
 # scripts/validate-evals.mjs, and scripts/evals.mjs. When you add, rename, or
 # remove a plugin with skills, update paths.skills; npm run verify checks it.
 paths:
-  skills: [ plugins/decide/skills ]
+  skills: [ plugins/decide/skills, plugins/commit-attribution/skills ]
   evals:
     - evals
   # eval.yaml is Vally's default. *.eval.yaml lets one folder hold several

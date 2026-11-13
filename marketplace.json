@@ -11,6 +11,12 @@
       "description": "Typed decisions for bounded classification, routing, and scoring through a user-configured Microsoft Foundry deployment."
     },
     {
+      "name": "commit-attribution",
+      "source": "./plugins/commit-attribution",
+      "version": "1.0.3",
+      "description": "Attribute Copilot commits to their sessions with a commit skill and Git hook enforcement."
+    },
+    {
       "name": "agent-reproach",
       "source": {
         "source": "github",

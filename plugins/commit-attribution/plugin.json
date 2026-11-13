@@ -1,0 +1,8 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "commit-attribution",
+  "version": "1.0.3",
+  "description": "Attribute Copilot commits to their sessions with a commit skill and Git hook enforcement.",
+  "license": "MIT",
+  "keywords": ["git", "commit", "attribution", "hooks", "copilot"]
+}

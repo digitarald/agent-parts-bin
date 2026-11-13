@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "type": "command",
+        "command": "node \"${PLUGIN_ROOT}/scripts/attribution.mts\" session-start",
+        "timeoutSec": 30
+      }
+    ],
+    "preToolUse": [
+      {
+        "type": "command",
+        "matcher": "bash|powershell",
+        "command": "node \"${PLUGIN_ROOT}/scripts/attribution.mts\" pre-tool",
+        "timeoutSec": 30
+      }
+    ]
+  }
+}
