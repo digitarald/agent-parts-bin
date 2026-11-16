@@ -47,20 +47,35 @@ automatically by a newer push.
 
 ## Approved PR comparisons
 
-[Compare PR evals](../.github/workflows/eval-pr.yml) is a separate, manually
-dispatched workflow for the commit-attribution smoke eval. It does not yet
-automatically run for trusted contributors or respond to approval labels.
+[Compare PR evals](../.github/workflows/eval-pr.yml) runs the commit-attribution
+smoke comparison automatically for eligible PRs targeting `main`. It watches
+changes to the attribution plugin, its evals, and comparison infrastructure.
+Opening, updating, reopening, or marking a PR ready for review triggers a
+read-only authorization job.
 
-After reviewing a PR's code and approving its AI-credit use, a maintainer can
-choose **Run workflow** from `main`, enter the PR number and its exact
-40-character head SHA, and approve the `evals` environment if required.
-Fork PRs use the same manual approval. A changed head requires a new dispatch.
+Automatic runs require a non-draft, same-repository PR by a human author.
+The author, event actor, and rerun actor must each currently have repository
+write access. The job checks GitHub's collaborator-permission API, not the
+historical `CONTRIBUTOR` or `MEMBER` association. An API error stops the workflow;
+an ineligible PR skips the paid job and gets an explanation in the job summary.
+
+For forks, bots, and other ineligible PRs, a maintainer reviews the code and
+approves its AI-credit use by choosing **Run workflow** from `main`, entering
+the PR number and its exact 40-character head SHA. Both the dispatch actor
+and any rerun actor need repository `maintain` or `admin` access. A changed
+head needs a new dispatch. Labels and approvals on older commits do not
+authorize new commits.
+
+The paid job retains the `evals` environment, so configured required reviewers
+can also pause automatic runs. The authorization job itself has no Copilot or
+write permission. Head identity and current permissions are checked again
+before preparing a paid run.
 
 The workflow:
 
 1. Captures the base and head skill files by immutable commit, without checking
    out or installing the PR's dependencies, setup scripts, or graders.
-2. Uses the same smoke definition and runtime from the workflow's `main`
+2. Uses the same smoke definition and runtime from the workflow's trusted `main`
    revision for both sides, with `gpt-6.1-terra`, one worker, one trial per case,
    a two-minute trial timeout, and no evaluator retries.
 3. Reports verdicts, score changes, tokens, and duration. It flags changed checks
@@ -72,6 +87,11 @@ The workflow:
    permission validates those records, rechecks the head, and updates one PR
    comment. The model-running job has no PR-write permission.
 
+The PR trigger is `pull_request_target`, but every checkout uses its trusted
+base commit (`github.sha`), never PR-head code. Dependency installation and
+report publishing use that same revision. These jobs do not restore or save
+shared dependency caches.
+
 Only the skill directory changes between the two runs. Hook installation and
 real-Git attribution behavior are outside this comparison; the extended evals
 remain in the manual **Behavioral evals** workflow's `full` suite. The normal
@@ -79,14 +99,16 @@ remain in the manual **Behavioral evals** workflow's `full` suite. The normal
 
 The comparison is not a security sandbox. An agent can execute tools despite
 prompt instructions, and the model-running job has a read token with Copilot
-access. Review skill contents before approving a run. One trial is a review
+access. Grant write access only to contributors trusted to trigger these paid
+runs; review other skill changes before manually approving them. One trial is a review
 signal, not proof of improvement, and token counts are not a price estimate.
 The comparison workflow and PR publication have not yet been exercised in
 GitHub Actions. A local smoke run on 2026-11-16 with Vally 0.21.0 and the
 evaluator's default `claude-sonnet-5.5` recorded one passed case and one failed
 case. The drafted message had the correct co-author trailer, but the required
 skill-invocation check failed. The status-question case passed. This is not a
-result for the CI-pinned `gpt-6.1-terra`; the checks were not weakened.
+result for `gpt-6.1-terra`, now pinned in both saved evals as well as the CLI
+and CI commands. No new Terra run has been made; the checks were not weakened.
 
 ## Security
 

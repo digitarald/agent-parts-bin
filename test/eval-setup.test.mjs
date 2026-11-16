@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { parse } from "yaml";
+import { ProjectContext, discoverAndFilterEvals, resolveExperiment } from "@microsoft/vally";
 import { assetsWithEvals, checkCoverage, discoverAssets, readEvals, root, suiteTags } from "../.github/scripts/validate-evals.mjs";
 import { evalFilenameMatcher, parseTagSelectors, readCatalog, readVallyConfig } from "../.github/scripts/catalog.mjs";
 import { defaultRuntime, pluginDirectories, runtimeArguments, runtimeEntry } from "../.github/scripts/eval-runtime.js";
@@ -116,6 +117,58 @@ test("path params come only from .vally.yaml, so removing an example removes its
   }
 });
 
+test("local eval launchers use the CI model by default and preserve explicit overrides", async () => {
+  const workflow = parse(await readFile(resolve(root, ".github/workflows/evals.yml"), "utf8"));
+  const model = workflow.jobs.evals.env.EVAL_MODEL;
+  const manifest = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
+  for (const command of ["eval", "eval:smoke"]) {
+    const args = manifest.scripts[command].split(" ");
+    assert.equal(args[args.indexOf("--model") + 1], model);
+  }
+  const defaults = vallyArguments("eval");
+  assert.equal(defaults[defaults.indexOf("--model") + 1], model);
+  for (const override of [["--model", "other-model"], ["--model=other-model"]]) {
+    const args = vallyArguments("eval", ["--suite", "smoke", ...override]);
+    assert.ok(!args.includes(model));
+    assert.deepEqual(args.slice(-override.length), override);
+  }
+  for (const command of ["lint", "grade"]) assert.ok(!vallyArguments(command).includes("--model"));
+});
+
+test("native attribution eval discovery requests the same model as CI", {
+  skip: !existsSync(resolve(root, "evals/commit-attribution")),
+}, async () => {
+  const project = await ProjectContext.load(root);
+  const { matched: attribution, errors } = await discoverAndFilterEvals(project, {
+    suiteEvals: ["evals/commit-attribution/**/eval.yaml", "evals/commit-attribution/**/*.eval.yaml"],
+  });
+  assert.deepEqual(errors, []);
+  const workflow = parse(await readFile(resolve(root, ".github/workflows/evals.yml"), "utf8"));
+  const expectedModel = workflow.jobs.evals.env.EVAL_MODEL;
+  assert.ok(attribution.length > 0);
+  for (const { spec } of attribution) assert.equal(spec.defaults.model, expectedModel, spec.name);
+});
+
+test("the model experiment discovers both supported eval filenames without selecting fixtures or results", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "starter-experiment-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const experiment = join(directory, "standard-models.experiment.yaml");
+  await writeFile(experiment, await readFile(resolve(root, "evals/standard-models.experiment.yaml"), "utf8"));
+  const selected = ["example/skills/commit/eval.yaml", "example/skills/commit/message.eval.yaml", "example/agents/reviewer/review.eval.yaml"];
+  for (const [index, path] of [...selected, "example/skills/commit/eval.params.yaml", "results/saved/eval.yaml"].entries()) {
+    await mkdir(resolve(directory, path, ".."), { recursive: true });
+    await writeFile(join(directory, path), `name: fixture-${index}\nstimuli:\n  - name: case-${index}\n    prompt: Answer yes.\n    graders:\n      - type: completed\n`);
+  }
+  const plan = await resolveExperiment(experiment);
+  assert.deepEqual([...new Set(plan.plans.map((item) => item.relativeEvalFile))].sort(), [...selected].sort());
+  for (const path of selected) {
+    const runs = plan.plans.filter((item) => item.relativeEvalFile === path);
+    assert.equal(runs.length, plan.variantNames.length);
+    assert.equal(new Set(runs.map((item) => item.variant)).size, plan.variantNames.length);
+    for (const run of runs) assert.deepEqual(run.effectiveSpec.stimuli, run.originalEvalSpec.stimuli);
+  }
+});
+
 test("eval discovery follows .vally.yaml evalFilenames, including a custom *.eval.yaml pattern", async () => {
   const directory = await mkdtemp(join(tmpdir(), "starter-eval-names-"));
   try {
@@ -193,7 +246,7 @@ test("the source validator accepts CRLF changelog headings and excludes generate
 // the customizations docs/ci.md describes keep npm run verify passing: trimming
 // the validate matrix or using one job, removing the evals environment, uploading transcripts
 // for a debug run, or deleting evals.yml.
-test("deterministic CI stays model-free, and behavioral CI is manual-only with a pinned runtime", async () => {
+test("deterministic CI stays model-free, and behavioral CI uses approved triggers and a pinned runtime", async () => {
   const automatic = parse(await readFile(resolve(root, ".github/workflows/validate.yml"), "utf8"));
   const evalsPath = resolve(root, ".github/workflows/evals.yml");
   const evals = existsSync(evalsPath) ? parse(await readFile(evalsPath, "utf8")) : undefined;
@@ -263,11 +316,18 @@ test("deterministic CI stays model-free, and behavioral CI is manual-only with a
     if (upload) assert.match(upload.if, /vars\.EVALS_UPLOAD_RESULTS == 'true'/, "Transcripts upload only when someone opts in.");
   }
   if (comparison) {
-    assert.deepEqual(Object.keys(comparison.on), ["workflow_dispatch"]);
+    assert.deepEqual(Object.keys(comparison.on).sort(), ["pull_request_target", "workflow_dispatch"]);
+    assert.deepEqual(comparison.on.pull_request_target.branches, ["main"]);
+    assert.deepEqual(comparison.on.pull_request_target.types, ["opened", "synchronize", "reopened", "ready_for_review"]);
+    assert.ok(comparison.on.pull_request_target.paths.includes("plugins/commit-attribution/**"));
     assert.equal(comparison.on.workflow_dispatch.inputs.head.required, true);
     assert.equal(comparison.concurrency["cancel-in-progress"], false);
     assert.deepEqual(comparison.permissions, { contents: "read" });
-    const { compare, report } = comparison.jobs;
+    const { authorize, compare, report } = comparison.jobs;
+    assert.deepEqual(authorize.permissions, { contents: "read", "pull-requests": "read" });
+    assert.equal(authorize.environment, undefined);
+    assert.equal(compare.needs, "authorize");
+    assert.equal(compare.if, "${{ needs.authorize.outputs.authorized == 'true' }}");
     assert.equal(compare.permissions["copilot-requests"], "write");
     assert.equal(compare.permissions["pull-requests"], "read");
     assert.equal(report.permissions["copilot-requests"], undefined);
@@ -275,10 +335,21 @@ test("deterministic CI stays model-free, and behavioral CI is manual-only with a
     assert.equal(report.needs, "compare");
     assert.match(report.if, /!cancelled\(\).*report_ready == 'true'/);
     assert.ok(compare.steps[0].run.includes('test "$GITHUB_REF" = refs/heads/main'));
-    for (const job of [compare, report]) {
+    for (const job of [authorize, compare, report]) {
       assert.equal(job["runs-on"], "ubuntu-latest");
       assert.ok(nodeVersions.map(Number).includes(Number(job.steps.find((step) => step.uses?.startsWith("actions/setup-node@")).with["node-version"])));
+      const checkout = job.steps.find((step) => step.uses?.startsWith("actions/checkout@"));
+      assert.equal(checkout.with.ref, "${{ github.sha }}", "Never check out the PR head under pull_request_target.");
+      assert.equal(job.steps.find((step) => step.uses?.startsWith("actions/setup-node@")).with.cache, undefined);
+      assert.ok(!job.steps.some((step) => step.uses?.startsWith("actions/cache@")));
+      assert.ok(!job.steps.some((step) => step.run?.includes("${{")), "Keep event data out of shell interpolation.");
+      for (const step of job.steps.filter((step) => step.run?.startsWith("npm ci"))) {
+        assert.equal(step.env?.GH_TOKEN, undefined);
+        assert.equal(step.env?.GITHUB_TOKEN, undefined);
+      }
     }
+    assert.ok(authorize.steps.some((step) => step.run?.endsWith("commit-attribution-pr.mjs authorize")));
+    assert.ok(compare.steps.some((step) => step.run?.endsWith("commit-attribution-pr.mjs prepare")));
     for (const [, job] of runners) {
       assert.equal(job.env.EVAL_MODEL, comparison.env.EVAL_MODEL);
       assert.notEqual(job.env.EVAL_MODEL, "auto");

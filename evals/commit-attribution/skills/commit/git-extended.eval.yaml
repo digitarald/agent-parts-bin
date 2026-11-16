@@ -3,6 +3,7 @@ description: Real Git commits and hook enforcement with synthetic runtime attrib
 type: capability
 defaults:
   executor: copilot-sdk
+  model: gpt-6.1-terra
   timeout: 3m
   runs: 1
 tags:

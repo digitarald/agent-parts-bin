@@ -1,5 +1,17 @@
 name: Compare PR evals
 on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - plugins/commit-attribution/**
+      - evals/commit-attribution/**
+      - .github/scripts/commit-attribution-pr*
+      - .github/scripts/eval-report*
+      - .github/workflows/eval-pr.yml
+      - .vally.yaml
+      - package.json
+      - package-lock.json
   workflow_dispatch:
     inputs:
       pr:
@@ -13,15 +25,41 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: pr-evals-${{ inputs.pr }}
+  group: pr-evals-${{ inputs.pr || github.event.pull_request.number }}
   cancel-in-progress: false
 env:
   EVAL_MODEL: gpt-6.1-terra
-  PR_NUMBER: ${{ inputs.pr }}
-  EXPECTED_HEAD: ${{ inputs.head }}
+  PR_NUMBER: ${{ inputs.pr || github.event.pull_request.number }}
+  EXPECTED_HEAD: ${{ inputs.head || github.event.pull_request.head.sha }}
   VALLY_TELEMETRY_OPTOUT: '1'
 jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      authorized: ${{ steps.authorize.outputs.authorized }}
+    steps:
+      - name: Require trusted main workflow
+        run: test "$GITHUB_REF" = refs/heads/main
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+      - run: npm ci --no-audit --no-fund
+      - name: Check current contributor or maintainer permissions
+        id: authorize
+        run: node .github/scripts/commit-attribution-pr.mjs authorize
+        env:
+          GH_TOKEN: ${{ github.token }}
   compare:
+    needs: authorize
+    if: ${{ needs.authorize.outputs.authorized == 'true' }}
     runs-on: ubuntu-latest
     environment: evals
     timeout-minutes: 20
@@ -38,11 +76,11 @@ jobs:
         run: test "$GITHUB_REF" = refs/heads/main
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
-          cache: npm
       - run: npm ci --no-audit --no-fund
       - name: Capture reviewed skill revisions and identical checks
         id: prepare
@@ -74,11 +112,11 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
-          cache: npm
       - run: npm ci --no-audit --no-fund
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:

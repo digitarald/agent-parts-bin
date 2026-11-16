@@ -14,8 +14,10 @@ The commit-attribution evals cover two levels:
   checks a scoped commit, recovery from a rejected message, and an explicitly
   requested amendment that preserves historical attribution.
 
-Both definitions passed static validation. Neither has been run against a
-model. Template-plugin evals are intentionally not included.
+Both definitions passed static validation. The native smoke run recorded one
+pass and one failed skill-invocation check using Sonnet, not the CI-pinned
+Terra model. See [the run details](ci.md#approved-pr-comparisons). The extended
+eval remains unrun. Template-plugin evals are intentionally not included.
 
 Use `tags.suite: smoke` for quick checks and `tags.suite: extended` for deeper
 cases. The `smoke` and `extended` suites filter those tags; `full` selects all
@@ -30,8 +32,8 @@ summary. The recovery setup must observe a real rejection with unchanged HEAD.
 The amendment check compares the complete historical message, including its
 final newline.
 
-These are POSIX fixtures requiring Node.js 22.18 or newer and a full-engine
-runner. Execution compatibility, setup, graders, and model behavior remain
+The extended cases are POSIX fixtures requiring Node.js 22.18 or newer and a
+full-engine runner. Their execution compatibility, setup, graders, and model behavior remain
 unverified. Native plugin discovery and session/model lookup need separate
 verification; staging a skill alone does not enable its hooks. These evals do
 not establish PR attribution, Windows behavior, comprehensive bypass detection,
@@ -61,8 +63,13 @@ the template's full coverage rules and may reject unevaluated experiments.
 Before `eval:smoke` or `eval`, review the
 [execution and scoped authentication setup](checks-and-evals.md#execution-and-authentication).
 Those commands run real Copilot sessions on the host, not in a sandbox.
-Each eval declares its model; override it with `--model MODEL_ID`.
-Local runs use one worker, per-case timeouts, and one bounded retry for a
+The npm commands and compatibility launcher request `gpt-6.1-terra`; override
+it with `--model MODEL_ID`. Both saved attribution definitions also pin Terra
+through `defaults.model`, which native Evals **Run** reads independently of
+the CLI commands. Check the native approval plan's model before running.
+No duplicate model-specific eval definitions are needed for CLI overrides
+or experiments.
+Local CLI runs use one worker, per-case timeouts, and one bounded retry for a
 timeout or rate limit. A valid failed verdict isn't retried to get a pass.
 
 ## Run only the plugins you changed

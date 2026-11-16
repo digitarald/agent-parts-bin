@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { checksFingerprint, projectResults, renderComparison, selectSkillFiles, validatePullRequest } from "./commit-attribution-pr.mjs";
+import { authorizePullRequest, checksFingerprint, projectResults, renderComparison, selectSkillFiles, validatePullRequest } from "./commit-attribution-pr.mjs";
 import { compareSummaries, summarizeRun } from "./eval-report.mjs";
 
 const expected = { name: "synthetic-eval", cases: ["draft", "routing"], checks: ["completed"], hash: "eval-hash" };
@@ -15,7 +15,7 @@ const identity = {
   repository: "owner/repo", pr: 7, base: "a".repeat(40), head: "b".repeat(40), harness: "c".repeat(40), checksChanged: false,
 };
 const pull = () => ({
-  number: 7, state: "open",
+  number: 7, state: "open", draft: false, user: { login: "contributor", type: "User" },
   base: { sha: identity.base, ref: "main", repo: { full_name: identity.repository } },
   head: { sha: identity.head, repo: { full_name: "contributor/fork" } },
 });
@@ -51,6 +51,55 @@ test("PR approval is tied to an open main-targeting PR and its exact head, inclu
   }
   assert.throws(() => validatePullRequest(pull(), identity.repository, "7/../../other", identity.head));
   assert.throws(() => validatePullRequest(pull(), identity.repository, 7, "main"));
+});
+
+test("automatic PR runs require same-repository human authors and current write permission for every actor", () => {
+  const pr = pull();
+  pr.head.repo.full_name = identity.repository;
+  const context = { repository: identity.repository, eventName: "pull_request_target", actor: "pusher", triggeringActor: "rerunner" };
+  const queried = [];
+  const writer = (login) => {
+    queried.push(login);
+    return { user: { login }, permission: "write", role_name: "write" };
+  };
+  assert.equal(authorizePullRequest(pr, context, writer).allowed, true);
+  assert.deepEqual(queried.sort(), ["contributor", "pusher", "rerunner"]);
+  for (const denied of queried) {
+    const decision = authorizePullRequest(pr, context, (login) => ({
+      user: { login }, permission: login === denied ? "read" : "write",
+    }));
+    assert.equal(decision.allowed, false, denied);
+    assert.match(decision.reason, /current write access/);
+  }
+  for (const mutate of [
+    (value) => { value.head.repo.full_name = "contributor/fork"; },
+    (value) => { value.draft = true; },
+    (value) => { value.user.type = "Bot"; },
+  ]) {
+    const changed = structuredClone(pr);
+    mutate(changed);
+    assert.equal(authorizePullRequest(changed, context, () => assert.fail("Do not query permissions for ineligible PRs")).allowed, false);
+  }
+  // Association labels are not a substitute for current collaborator permissions.
+  pr.author_association = "OWNER";
+  assert.equal(authorizePullRequest(pr, context, (login) => ({ user: { login }, permission: "none" })).allowed, false);
+  assert.equal(authorizePullRequest(pr, { ...context, triggeringActor: "automation[bot]" }, writer).allowed, false);
+  assert.equal(authorizePullRequest(pr, { ...context, actor: undefined }, writer).allowed, false);
+});
+
+test("manual dispatch accepts reviewed forks only for maintainers, including the rerun actor, and fails closed on API errors", () => {
+  const context = { repository: identity.repository, eventName: "workflow_dispatch", actor: "maintainer", triggeringActor: "rerunner" };
+  const permissionFor = (login) => ({ user: { login }, permission: "write", role_name: "maintain" });
+  assert.equal(authorizePullRequest(pull(), context, permissionFor).allowed, true);
+  assert.equal(authorizePullRequest(pull(), context, (login) => ({ user: { login }, permission: "admin" })).allowed, true);
+  for (const denied of ["maintainer", "rerunner"]) {
+    assert.equal(authorizePullRequest(pull(), context, (login) => ({
+      user: { login }, permission: login === denied ? "write" : "admin",
+    })).allowed, false);
+  }
+  assert.throws(() => authorizePullRequest(pull(), context, () => { throw new Error("Permission API unavailable"); }), /API unavailable/);
+  assert.throws(() => authorizePullRequest(pull(), context, () => ({ permission: "admin" })), /invalid collaborator/);
+  assert.throws(() => authorizePullRequest(pull(), { ...context, eventName: "pull_request" }, permissionFor), /Unsupported/);
 });
 
 test("skill capture rejects truncated trees, symlinks, traversal, missing skills, and oversized input", () => {
@@ -191,6 +240,10 @@ test("comparison CLI runs both snapshots after a behavioral failure and publishe
   `);
   const posted = join(directory, "posted.json");
   const bin = join(directory, "bin");
+  const prResponse = join(directory, "pull.json");
+  const roleResponse = join(directory, "role.json");
+  fixture(prResponse, JSON.stringify(pull()));
+  fixture(roleResponse, JSON.stringify({ permission: "admin" }));
   fixture(join(bin, "gh"), `#!/usr/bin/env node
     const fs = require("node:fs");
     const args = process.argv.slice(2);
@@ -200,7 +253,10 @@ test("comparison CLI runs both snapshots after a behavioral failure and publishe
     } else if (args[1].endsWith("/comments")) {
       console.log("[[]]");
     } else if (args[1] === "repos/owner/repo/pulls/7") {
-      console.log(${JSON.stringify(JSON.stringify(pull()))});
+      console.log(fs.readFileSync(${JSON.stringify(prResponse)}, "utf8"));
+    } else if (/^repos\\/owner\\/repo\\/collaborators\\/[^/]+\\/permission$/.test(args[1])) {
+      const role = JSON.parse(fs.readFileSync(${JSON.stringify(roleResponse)}, "utf8"));
+      console.log(JSON.stringify({ ...role, user: { login: args[1].split("/")[4] } }));
     } else {
       throw new Error("Unexpected fake API call");
     }
@@ -211,12 +267,40 @@ test("comparison CLI runs both snapshots after a behavioral failure and publishe
     PATH: [bin, dirname(process.execPath), process.env.PATH].join(delimiter),
     HOME: directory, RUNNER_TEMP: directory, COMPARISON_DIR: prepared, REPORT_DIR: directory,
     EVAL_MODEL: model, GITHUB_REPOSITORY: identity.repository, GITHUB_SHA: identity.harness, GITHUB_RUN_ID: "1",
+    GITHUB_REF: "refs/heads/main", GITHUB_EVENT_NAME: "workflow_dispatch",
+    GITHUB_ACTOR: "maintainer", GITHUB_TRIGGERING_ACTOR: "maintainer",
     GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary, GITHUB_TOKEN: "synthetic-read-token",
     GH_TOKEN: "synthetic-publish-token", ACTIONS_RUNTIME_TOKEN: "synthetic-artifact-token",
     PR_NUMBER: "7", EXPECTED_HEAD: identity.head, EXPECTED_BASE: identity.base, CHECKS_CHANGED: "false",
   };
   const script = fileURLToPath(new URL("./commit-attribution-pr.mjs", import.meta.url));
   const invoke = (command) => spawnSync(process.execPath, [script, command], { cwd: root, env, encoding: "utf8", timeout: 10000 });
+  const approval = invoke("authorize");
+  assert.equal(approval.status, 0, approval.stderr);
+  assert.match(readFileSync(output, "utf8"), /authorized=true/);
+  env.GITHUB_EVENT_NAME = "pull_request_target";
+  fixture(output, "");
+  const fork = invoke("authorize");
+  assert.equal(fork.status, 0, fork.stderr);
+  assert.match(readFileSync(output, "utf8"), /authorized=false/);
+  const sameRepository = pull();
+  sameRepository.head.repo.full_name = identity.repository;
+  fixture(prResponse, JSON.stringify(sameRepository));
+  assert.equal(invoke("authorize").status, 0);
+  assert.match(readFileSync(output, "utf8"), /authorized=true/);
+  fixture(roleResponse, JSON.stringify({ permission: "read" }));
+  const revoked = invoke("prepare");
+  assert.equal(revoked.status, 1);
+  assert.match(revoked.stderr, /current write access/);
+  assert.equal(readFileSync(output, "utf8").includes("directory="), false);
+  fixture(roleResponse, JSON.stringify({ permission: "admin" }));
+  env.EXPECTED_HEAD = "d".repeat(40);
+  assert.match(invoke("authorize").stderr, /PR head changed/);
+  env.EXPECTED_HEAD = identity.head;
+  env.GITHUB_REF = "refs/heads/untrusted";
+  assert.match(invoke("authorize").stderr, /trusted main workflow/);
+  env.GITHUB_REF = "refs/heads/main";
+  env.GITHUB_EVENT_NAME = "workflow_dispatch";
   const execution = invoke("run");
   assert.ifError(execution.error);
   assert.equal(execution.status, 1, execution.stderr);

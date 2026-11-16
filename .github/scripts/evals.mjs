@@ -44,7 +44,10 @@ export function runtimeEnvironment(base = process.env) {
 export function vallyArguments(command, args = [], params = evalParams) {
   if (!["eval", "lint", "grade"].includes(command)) throw new Error("Use eval, lint, or grade.");
   const defaults = command === "eval"
-    ? ["--workers", "1", "--max-retries", "1", "--junit", "--output-dir", resultsPath]
+    ? [
+      "--workers", "1", "--max-retries", "1", "--junit", "--output-dir", resultsPath,
+      ...(!args.some((arg) => arg === "--model" || arg.startsWith("--model=")) ? ["--model", "gpt-6.1-terra"] : []),
+    ]
     : command === "lint" ? ["plugins", "--eval-spec", "evals", "--strict"] : [];
   const flags = Object.entries(params).flatMap(([name, value]) => ["--param", `${name}=${value}`]);
   return [vallyCliPath, command, ...defaults, ...flags, ...args];
@@ -67,7 +70,8 @@ Launcher options for eval and lint:
                     session. It's free.
 
 Any other options go to Vally, for example --suite smoke, --eval-spec <path>,
---tag <key=value>, --model <id>, or --require-pass. With no --suite,
+--tag <key=value>, --model <id>, or --require-pass. Runs default to
+gpt-6.1-terra; an explicit --model overrides it. With no --suite,
 --eval-spec, --plugin, or --tag, eval runs the full suite. --plugin and
 --eval-spec work with --suite and --tag: the launcher turns the suite into the
 spec list and tag filter Vally accepts. Run node .github/scripts/evals.mjs eval --help
@@ -231,6 +235,8 @@ async function main() {
     // Fails here, for free, on a combination Vally would reject.
     vallySelection(args, config, { specPaths: await specPaths(config) });
     console.log(`Would run ${total} case${total === 1 ? "" : "s"} from ${chosen.length} spec${chosen.length === 1 ? "" : "s"}. Each case runs at least one Copilot session.`);
+    const effectiveArgs = vallyArguments("eval", args);
+    console.log(`Requested model: ${optionValues(effectiveArgs, "--model").at(-1)} (availability not checked).`);
     for (const item of chosen) {
       console.log(`  ${item.path}`);
       for (const name of item.cases) console.log(`    ${name}`);

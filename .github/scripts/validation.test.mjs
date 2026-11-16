@@ -386,7 +386,7 @@ test("validation calls CI scripts, and paid eval activation is manual-only", () 
   assert.equal(job.steps.find((step) => step.uses?.startsWith("actions/checkout@")).with["persist-credentials"], false);
   for (const [name, command] of Object.entries({
     lint: "node .github/scripts/lint.mjs",
-    eval: "vally eval --workers 1 --max-retries 1",
+    eval: "vally eval --workers 1 --max-retries 1 --model gpt-6.1-terra",
     "eval:models": "vally experiment run evals/standard-models.experiment.yaml --output-dir evals/results/standard-models --require-pass",
     "eval:report": "node .github/scripts/eval-report.mjs",
     "eval:compare": "node .github/scripts/eval-report.mjs",

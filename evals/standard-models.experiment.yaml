@@ -1,7 +1,9 @@
 name: standard-models
 evals:
   - "*/skills/*/eval.yaml"
+  - "*/skills/*/*.eval.yaml"
   - "*/agents/*/eval.yaml"
+  - "*/agents/*/*.eval.yaml"
 matrix:
   model:
     path: /defaults/model

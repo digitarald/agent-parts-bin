@@ -92,8 +92,10 @@ The [commit-attribution smoke eval](../evals/commit-attribution/skills/commit/co
 checks message drafting and routing, not installed-hook enforcement. The
 [extended eval](../evals/commit-attribution/skills/commit/git-extended.eval.yaml)
 checks actual commits, rejection recovery, and explicit amendments with the
-real Git hook and synthetic runtime context. Both passed static validation;
-neither has been run. The extended cases require a POSIX full-engine runner
+real Git hook and synthetic runtime context. Both passed static validation.
+The smoke run recorded one pass and one failed skill-invocation check; see
+[the run details](ci.md#approved-pr-comparisons). The extended eval remains
+unrun. Its cases require a POSIX full-engine runner
 and do not verify native plugin discovery. The separate `.mts` Git tests remain
 outside the CI verification gate.
 Run `npm run eval:list` to inspect the current selection without calling a model.
@@ -210,7 +212,15 @@ even if input or the eval fails. Do not enable shell tracing or print these
 variables. Model-free recipe checks do not prove token access or actual model
 authentication.
 
-This uses the eval's declared model and one trial per case.
+These npm commands request `gpt-6.1-terra` and preserve each eval's declared
+trial count. Pass `--model <id>` to override the model. The compatibility
+launcher uses the same default and shows it in `npm run eval:list`.
+
+Native Evals **Run** and direct `vally eval` calls do not read npm scripts or
+CI workflow settings. Both saved attribution definitions now pin
+`defaults.model: gpt-6.1-terra`, so native runs request Terra too. Check the
+approval plan for overrides and account access. The earlier completed native
+smoke run used Sonnet before this pin; it is not evidence of Terra behavior.
 
 With the same explicitly selected authentication, `npm run eval -- --suite
 smoke` selects the smoke cases and `npm run eval -- --suite full --max-retries
@@ -225,7 +235,9 @@ When adopting the template, replace `matrix.model.values` with your own model
 IDs and set `baseline.model` to one of them. Vally requires at least two variants;
 for a single model, use `npm run eval -- --model <model-id>` instead.
 
-Once you have added evals, preview the selected cases, variants and configuration
+The experiment selects `eval.yaml` and `*.eval.yaml` under each plugin's
+`skills/<skill>/` and `agents/<agent>/` directories, including extended evals.
+Preview the selected cases, variants and configuration
 hashes without running setup or a model:
 
 ```sh
@@ -258,13 +270,17 @@ a model:
 
 ```sh
 npm run eval:report
-npm run eval:compare -- --baseline evals/_shared/fixtures/pr-description/baseline-results.jsonl --candidate evals/_shared/fixtures/pr-description/candidate-results.jsonl
+npm run eval:compare -- --baseline "evals/results/<baseline-run>" --candidate "evals/results/<candidate-run>"
 ```
 
-[Evals](../.github/workflows/evals.yml) runs the smoke suite only when you
-explicitly start it with **Run workflow** in GitHub Actions
-(`workflow_dispatch`). Pull requests never start paid evals. Review the
-selected branch and its eval code before dispatching a run.
+Replace the placeholder directories with the saved runs you intend to compare.
+
+[Evals](../.github/workflows/evals.yml) runs the selected `smoke` or `full` suite
+only when you explicitly start it with **Run workflow** in GitHub Actions
+(`workflow_dispatch`). The separate [PR comparison workflow](ci.md#approved-pr-comparisons)
+automatically runs for same-repository contributors with verified write access.
+Other PRs require an exact-head maintainer dispatch. Review the selected
+revisions and eval code before approving a manual run.
 
 ## Template migration
 

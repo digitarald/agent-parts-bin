@@ -39,6 +39,64 @@ export function validatePullRequest(pr, repository, number, expectedHead) {
   return { repository, pr: Number(number), base: pr.base.sha, head: expectedHead, headRepository: pr.head.repo.full_name };
 }
 
+export function authorizePullRequest(pr, { repository, eventName, actor, triggeringActor }, permissionFor) {
+  const manual = eventName === "workflow_dispatch";
+  if (!manual && eventName !== "pull_request_target") throw new Error("Unsupported eval trigger.");
+  if (!manual && (pr.head.repo.full_name !== repository || pr.draft || pr.user?.type !== "User")) {
+    return { allowed: false, reason: "Fork, draft, or bot PRs require an exact-head maintainer dispatch." };
+  }
+  const users = [...new Set([actor, triggeringActor, ...(!manual ? [pr.user?.login] : [])])];
+  if (users.some((login) => typeof login !== "string" || !/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/.test(login))) {
+    return { allowed: false, reason: "A human author, actor, and rerun actor must be identifiable." };
+  }
+  for (const login of users) {
+    const result = permissionFor(login);
+    if (result?.user?.login?.toLowerCase() !== login.toLowerCase()
+      || !["none", "read", "triage", "write", "maintain", "admin"].includes(result.permission)) {
+      throw new Error("GitHub returned an invalid collaborator permission response.");
+    }
+    // GitHub reports the standard maintain role as permission=write.
+    const maintainer = ["admin", "maintain"].includes(result.permission) || result.role_name === "maintain";
+    const writer = maintainer || result.permission === "write" || result.permission === "maintain";
+    if (manual ? !maintainer : !writer) {
+      return {
+        allowed: false,
+        reason: manual
+          ? "Manual approval and reruns require repository maintain or admin access."
+          : "Automatic evals require current write access for the PR author, actor, and rerun actor.",
+      };
+    }
+  }
+  return { allowed: true, reason: manual ? "Maintainer approved this exact PR head." : "Same-repository contributor permissions verified." };
+}
+
+function checkedRequest() {
+  if (process.env.GITHUB_REF !== "refs/heads/main"
+    || !["workflow_dispatch", "pull_request_target"].includes(process.env.GITHUB_EVENT_NAME)) {
+    throw new Error("Use a trusted main workflow through a PR event or an exact-head dispatch.");
+  }
+  const repository = process.env.GITHUB_REPOSITORY;
+  const number = process.env.PR_NUMBER;
+  const expectedHead = process.env.EXPECTED_HEAD;
+  if (!repositoryName.test(repository ?? "") || !/^[1-9]\d*$/.test(number ?? "") || !sha.test(expectedHead ?? "")) {
+    throw new Error("A valid repository, PR number, and exact head SHA are required.");
+  }
+  const pr = api(`repos/${repository}/pulls/${number}`);
+  const identity = validatePullRequest(pr, repository, number, expectedHead);
+  const decision = authorizePullRequest(pr, {
+    repository, eventName: process.env.GITHUB_EVENT_NAME,
+    actor: process.env.GITHUB_ACTOR, triggeringActor: process.env.GITHUB_TRIGGERING_ACTOR,
+  }, (login) => api(`repos/${repository}/collaborators/${login}/permission`));
+  return { identity, decision };
+}
+
+function authorize() {
+  const { decision } = checkedRequest();
+  output("authorized", decision.allowed);
+  appendFileSync(process.env.GITHUB_STEP_SUMMARY, `## PR eval authorization\n\n${decision.reason}\n`);
+  if (!decision.allowed && process.env.GITHUB_EVENT_NAME === "workflow_dispatch") throw new Error(decision.reason);
+}
+
 export function selectSkillFiles(tree) {
   if (tree.truncated || !Array.isArray(tree.tree)) throw new Error("GitHub returned an incomplete source tree.");
   const files = tree.tree.filter((entry) => entry.path.startsWith(skillPath) && entry.type !== "tree");
@@ -159,22 +217,14 @@ export function renderComparison(bundle, expected, model, identity, runUrl) {
 }
 
 function prepare(root) {
-  if (process.env.GITHUB_REF !== "refs/heads/main" || process.env.GITHUB_EVENT_NAME !== "workflow_dispatch") {
-    throw new Error("Dispatch this workflow from main after reviewing the exact PR head.");
-  }
-  const repository = process.env.GITHUB_REPOSITORY;
-  const number = process.env.PR_NUMBER;
-  const expectedHead = process.env.EXPECTED_HEAD;
-  if (!repositoryName.test(repository ?? "") || !/^[1-9]\d*$/.test(number ?? "") || !sha.test(expectedHead ?? "")) {
-    throw new Error("A valid repository, PR number, and exact head SHA are required.");
-  }
-  const identity = validatePullRequest(api(`repos/${repository}/pulls/${number}`), repository, number, expectedHead);
+  const { identity, decision } = checkedRequest();
+  if (!decision.allowed) throw new Error(decision.reason);
   if (!sha.test(process.env.GITHUB_SHA ?? "")) throw new Error("The trusted workflow revision is missing.");
   const expected = definition(root);
   const directory = mkdtempSync(join(process.env.RUNNER_TEMP, "attribution-pr-"));
   const fingerprints = [];
   for (const [side, sourceRepository, revision] of [
-    ["baseline", repository, identity.base],
+    ["baseline", identity.repository, identity.base],
     ["candidate", identity.headRepository, identity.head],
   ]) {
     const snapshot = join(directory, side);
@@ -280,10 +330,11 @@ if (isEntrypoint(import.meta.url)) {
   try {
     const command = process.argv[2];
     const root = process.cwd();
-    if (command === "prepare") prepare(root);
+    if (command === "authorize") authorize();
+    else if (command === "prepare") prepare(root);
     else if (command === "run") run(root);
     else if (command === "report") report(root);
-    else throw new Error("Usage: node .github/scripts/commit-attribution-pr.mjs <prepare|run|report>");
+    else throw new Error("Usage: node .github/scripts/commit-attribution-pr.mjs <authorize|prepare|run|report>");
   } catch (error) {
     console.error(`commit-attribution-pr: ${error.message}`);
     process.exitCode = 1;

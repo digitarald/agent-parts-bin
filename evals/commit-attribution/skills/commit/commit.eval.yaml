@@ -3,6 +3,7 @@ description: Explore commit-message attribution and routing without making commi
 type: capability
 defaults:
   executor: copilot-sdk
+  model: gpt-6.1-terra
   timeout: 2m
   runs: 1
 tags:
