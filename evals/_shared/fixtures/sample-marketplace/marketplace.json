@@ -1,0 +1,14 @@
+{
+  "name": "fixture-plugins",
+  "owner": {
+    "name": "Fixture"
+  },
+  "plugins": [
+    {
+      "name": "sample-notes",
+      "source": "./plugins/sample-notes",
+      "version": "1.0.0",
+      "description": "Summarize synthetic release notes."
+    }
+  ]
+}

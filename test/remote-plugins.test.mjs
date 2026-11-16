@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { checkRemote } from "../scripts/check-remotes.mjs";
+import { checkRemote } from "../.github/scripts/check-remotes.mjs";
 
 // A fake GitHub API, so these checks never touch the network.
 const sha = "a".repeat(40);

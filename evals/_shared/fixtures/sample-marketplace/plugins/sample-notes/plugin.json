@@ -1,0 +1,7 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "sample-notes",
+  "version": "1.0.0",
+  "description": "Summarize synthetic release notes.",
+  "license": "MIT"
+}

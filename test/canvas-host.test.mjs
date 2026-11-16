@@ -7,8 +7,8 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { hostOptions } from "../evals/support/canvas-host.mjs";
-import { readEvals, root } from "../scripts/validate-evals.mjs";
-import { evalParams } from "../scripts/evals.mjs";
+import { readEvals, root } from "../.github/scripts/validate-evals.mjs";
+import { evalParams } from "../.github/scripts/evals.mjs";
 
 const host = fileURLToPath(new URL("../evals/support/canvas-host.mjs", import.meta.url));
 const options = { timeout: 60_000 };

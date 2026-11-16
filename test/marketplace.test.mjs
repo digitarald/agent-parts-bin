@@ -4,10 +4,10 @@ import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, cp, readFile, readdir, realpath, symlink, unlink, writeFile, rm } from "node:fs/promises";
 import { join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
-import { checkGenerated, generate, portable, writeGenerated } from "../scripts/build.mjs";
-import { contained, frontmatter, parseYaml, readCatalog, readVallyConfig } from "../scripts/catalog.mjs";
-import { assetsWithEvals, checkCoverage, discoverAssets, readEvals, root, suiteTags } from "../scripts/validate-evals.mjs";
-import { hookEvents, markdownLinks, pluginMentions, staleReferenceWarnings, validateMcpConfig, validateRepository } from "../scripts/validate.mjs";
+import { checkGenerated, generate, portable, writeGenerated } from "../.github/scripts/build.mjs";
+import { contained, frontmatter, parseYaml, readCatalog, readVallyConfig } from "../.github/scripts/catalog.mjs";
+import { assetsWithEvals, checkCoverage, discoverAssets, readEvals, root, suiteTags } from "../.github/scripts/validate-evals.mjs";
+import { hookEvents, markdownLinks, pluginMentions, staleReferenceWarnings, validateMcpConfig, validateRepository } from "../.github/scripts/validate.mjs";
 
 async function names(path) {
   try { return (await readdir(path)).sort(); }

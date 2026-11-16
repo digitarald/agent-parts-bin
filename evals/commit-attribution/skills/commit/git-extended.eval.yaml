@@ -1,0 +1,427 @@
+name: commit-attribution-git
+description: Real Git commits and hook enforcement with synthetic runtime attribution, not native plugin discovery or model lookup.
+type: capability
+defaults:
+  executor: copilot-sdk
+  timeout: 3m
+  runs: 1
+tags:
+  suite: extended
+agent_environment:
+  skills:
+    - ../../../../plugins/commit-attribution/skills/commit
+  files:
+    - src: ../../../../plugins/commit-attribution/scripts
+      dest: harness
+  env:
+    COPILOT_COMMIT_ATTRIBUTION: '{"version":1,"sessionId":"fixture-current-session","model":"fixture-current-model"}'
+    GIT_CONFIG_GLOBAL: /dev/null
+    GIT_CONFIG_NOSYSTEM: '1'
+    GIT_TERMINAL_PROMPT: '0'
+  commandTimeout: 30s
+  commands:
+    - |
+      node --input-type=module -e '
+      import { execFileSync } from "node:child_process";
+      import { mkdirSync, writeFileSync } from "node:fs";
+      import { resolve, join } from "node:path";
+      import { ensureInstalled } from "./harness/attribution-impl.mts";
+      if (process.platform === "win32") throw new Error("This extended fixture requires a POSIX host and Node.js 22.18+.");
+      for (const key of Object.keys(process.env)) {
+        if (key.startsWith("GIT_")) delete process.env[key];
+      }
+      delete process.env.COPILOT_COMMIT_ATTRIBUTION;
+      Object.assign(process.env, { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0" });
+      const repo = resolve("repo");
+      mkdirSync(repo);
+      const git = (...args) => execFileSync("git", args, { cwd: repo, encoding: "utf8", stdio: "pipe", timeout: 10000 });
+      git("init", "--quiet", "--template=", "--initial-branch=main");
+      git("config", "user.name", "Eval Fixture");
+      git("config", "user.email", "eval@example.invalid");
+      git("config", "commit.gpgsign", "false");
+      writeFileSync(join(repo, "notes.txt"), "Draft notes.\n");
+      writeFileSync(join(repo, "unrelated.txt"), "Keep this committed content.\n");
+      git("add", "notes.txt", "unrelated.txt");
+      git("commit", "-m", "Add draft notes\n\nCo-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>\nCopilot-Session-Id: fixture-previous-session\nCopilot-Model: fixture-previous-model");
+      if (!ensureInstalled(repo)) throw new Error("The real attribution hook was not installed.");
+      writeFileSync(join(repo, "notes.txt"), "Final notes.\n");
+      writeFileSync(join(repo, "unrelated.txt"), "Keep this uncommitted draft.\n");
+      '
+grading_environment:
+  files:
+    - src: ../../../_shared/graders/common.mjs
+      dest: .grading/common.mjs
+stimuli:
+- name: commit-attribution-creates-scoped-git-commit
+  prompt: |
+    In repo/, commit the notes.txt update as a new commit with the subject
+    "Finalize notes". Leave unrelated.txt and its uncommitted edit alone.
+    The attribution Git hook is already installed. Use a normal Git commit,
+    then verify the stored message and remaining working-tree changes.
+    Do not amend, push, access the network, edit the skill or harness, change
+    Git configuration, or bypass the hook. Report a blocker if you cannot finish.
+  tags:
+    assets: skill:commit-attribution/commit
+    control: positive
+  graders:
+  - type: completed
+    name: new-commit-completed
+  - type: skill-invocation
+    name: new-commit-invokes-skill
+    config:
+      required: [commit]
+  - type: program
+    name: new-commit-stored-git-state
+    config:
+      program: node
+      timeout: 30s
+      args:
+      - --input-type=module
+      - -e
+      - |
+        import { execFileSync, spawnSync } from "node:child_process";
+        import { existsSync, lstatSync, readdirSync } from "node:fs";
+        import { createHash } from "node:crypto";
+        import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+        import { check, json, runGrade, text } from "./.grading/common.mjs";
+        await runGrade("stored-git-state", (trajectory, workspace) => {
+          const hashes = {
+            "attribution.mts": "6f9a042071e0863841fc3295e72dfef736fe41cf18520f4a62cf004d1917010b",
+            "attribution-impl.mts": "6e1e68a620822894fba042ec51f27d6303895de108f3824e8858e7cd034bcb52",
+            "git-hook.mjs": "5d5bd044dcd4a5e1f42492f883d1b497ab0b8ebf6682132436257e16a1f8c550",
+            "SKILL.md": "283323bc905ce9ca820f3db1de6352ce8c8e050aad19bfbbe1b3e9cbedfcca85",
+          };
+          const hash = value => createHash("sha256").update(value).digest("hex");
+          const installed = file => text(workspace, "repo/.git/copilot-commit-attribution/" + file);
+          const repo = resolve(workspace, "repo");
+          if (!existsSync(join(repo, ".git")) || !lstatSync(join(repo, ".git")).isDirectory()) {
+            return [check("Fixture repository exists", false)];
+          }
+          const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));
+          Object.assign(env, { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0" });
+          const options = { cwd: repo, env, encoding: "utf8", stdio: "pipe", timeout: 10000 };
+          const head = spawnSync("git", ["rev-parse", "--verify", "HEAD"], options);
+          if (head.error) throw head.error;
+          if (head.status !== 0) return [check("Readable HEAD exists", false)];
+          const git = (...args) => execFileSync("git", ["-c", "core.fsmonitor=false", ...args], options);
+          const tree = "notes.txt\nunrelated.txt";
+          if (git("ls-tree", "-r", "--name-only", "HEAD").trim() !== tree) return [check("Only intended files committed", false)];
+          const messageFor = ref => {
+            const commit = git("cat-file", "commit", ref);
+            const separator = commit.indexOf("\n\n");
+            if (separator < 0) throw new Error("Malformed commit object.");
+            return commit.slice(separator + 2);
+          };
+          const amend = trajectory.stimulus.name === "commit-attribution-amends-with-historical-attribution";
+          const previous = "Add draft notes\n\nCo-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>\nCopilot-Session-Id: fixture-previous-session\nCopilot-Model: fixture-previous-model\n";
+          const message = messageFor("HEAD");
+          const count = git("rev-list", "--count", "HEAD").trim();
+          const trailers = execFileSync("git", ["-c", "trailer.separators=:", "interpret-trailers", "--no-divider", "--parse"], { ...options, input: message }).trim().split("\n");
+          const values = pattern => trailers.filter(line => pattern.test(line)).map(line => line.slice(line.indexOf(":") + 1).trim()).join("\n");
+          const activation = trajectory.events.find(event => event.type === "skill_activation" && event.data?.name === "commit")?.data;
+          if (!activation) return [check("Real commit skill activated", false)];
+          if (typeof activation.path !== "string" || !isAbsolute(activation.path)) throw new Error("Original skill path unavailable for hook verification.");
+          const skillDirectory = basename(activation.path) === "SKILL.md" ? dirname(activation.path) : activation.path;
+          if (basename(skillDirectory) !== "commit") throw new Error("Unexpected skill activation path.");
+          const originalRepo = join(dirname(skillDirectory), "repo");
+          const location = join(originalRepo, ".git", "copilot-commit-attribution");
+          const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
+          const dispatcher = [
+            "#!/bin/sh", "# Installed by commit-attribution; original hooks remain in their own directory.",
+            "original=" + quote(join(originalRepo, ".git", "hooks", "commit-msg")),
+            'if [ -n "$original" ] && [ -x "$original" ]; then', '  "$original" "$@" || exit $?', "fi",
+            'if [ "$${COPILOT_COMMIT_ATTRIBUTION+set}" = set ]; then',
+            "  exec " + quote(process.execPath) + " " + quote(join(location, "check.mjs")) + ' "$@"', "fi", "",
+          ].join("\n");
+          const checker = "import { checkMessage } from './git-hook.mjs';\ntry { checkMessage(process.argv[2]); }\ncatch (error) { console.error(`commit-attribution: $${error instanceof Error ? error.message : String(error)}`); process.exitCode = 1; }\n";
+          const state = json(workspace, "repo/.git/copilot-commit-attribution/state.json");
+          const oldHooks = join(repo, ".git", "hooks");
+          const hook = join(repo, ".git", "copilot-commit-attribution", "hooks", "commit-msg");
+          const config = spawnSync("git", ["config", "--path", "--get", "core.hooksPath"], options);
+          if (config.error) throw config.error;
+          if (config.status !== 0 && !(config.status === 1 && !config.stderr.trim())) throw new Error("Cannot inspect hook configuration: " + config.stderr);
+          const checks = [
+            check("Requested notes committed", git("show", "HEAD:notes.txt") === "Final notes.\n" && text(workspace, "repo/notes.txt") === "Final notes.\n"),
+            check("Unrelated versions preserved", git("show", "HEAD:unrelated.txt") === "Keep this committed content.\n" && text(workspace, "repo/unrelated.txt") === "Keep this uncommitted draft.\n"),
+            check("Only unrelated edit remains", git("status", "--porcelain=v1", "--untracked-files=all") === " M unrelated.txt\n"),
+            check("Correct history shape", count === (amend ? "1" : "2")),
+            check("Requested subject", git("log", "-1", "--format=%s").trim() === (amend ? "Add draft notes" : "Finalize notes")),
+            check("Final Copilot co-author", values(/^Co-authored-by:/i).split("\n").includes("Copilot <223556219+Copilot@users.noreply.github.com>")),
+            check("Correct session trailer", values(/^Copilot-Session-Id:/i) === (amend ? "fixture-previous-session" : "fixture-current-session")),
+            check("Correct model trailer", values(/^Copilot-Model:/i) === (amend ? "fixture-previous-model" : "fixture-current-model")),
+            check("Hook path preserved", config.status === 0 && config.stdout.trim() === join(location, "hooks")),
+            check("Real runtime preserved", hash(installed("git-hook.mjs")) === hashes["git-hook.mjs"]),
+            check("Executable guard preserved", installed("hooks/commit-msg") === dispatcher && existsSync(hook) && (lstatSync(hook).mode & 0o100) !== 0 && installed("check.mjs") === checker),
+            check("Installation state preserved", state?.version === 1 && state.originalPath === join(originalRepo, ".git", "hooks") && state.previousLocalPath === null && (!existsSync(oldHooks) || readdirSync(oldHooks).length === 0)),
+            check("Skill and harness preserved", hash(text(workspace, "commit/SKILL.md")) === hashes["SKILL.md"] && ["attribution.mts", "attribution-impl.mts", "git-hook.mjs"].every(file => hash(text(workspace, "harness/" + file)) === hashes[file])),
+            check("No remote configured", git("remote").trim() === ""),
+          ];
+          if (amend) checks.push(check("Historical message and final newline preserved", message === previous));
+          else checks.push(check("Parent message and files preserved", count === "2" && git("ls-tree", "-r", "--name-only", "HEAD^").trim() === tree && messageFor("HEAD^") === previous && git("show", "HEAD^:notes.txt") === "Draft notes.\n" && git("show", "HEAD^:unrelated.txt") === "Keep this committed content.\n"));
+          return checks;
+        });
+  - type: tool-calls
+    name: new-commit-no-recorded-bypass-or-push
+    config:
+      disallowed:
+      - name: '(^|[./:_-])(bash|powershell|shell)$'
+        command: '--no-verify|\b(commit-tree|update-ref)\b|core\.hooksPath\s*=|\b(unset|Remove-Item)\s+(env:)?COPILOT_COMMIT_ATTRIBUTION|\bgit\s+push\b|\bgh\s+(pr|release)\s+create\b'
+- name: commit-attribution-recovers-rejected-message
+  prompt: |
+    In repo/, the attempt to commit staged notes.txt using ../message.txt
+    was rejected. Read ../rejection.txt, fix the message file, and retry
+    with git commit -F ../message.txt. Keep the subject "Finalize notes".
+    Leave unrelated.txt and its uncommitted edit alone. Verify the resulting
+    stored message and remaining changes. Do not amend, push, access the
+    network, edit the skill or harness, change Git configuration, or bypass
+    the hook. Report a blocker rather than claiming a commit succeeded.
+  agent_environment:
+    commands:
+    - |
+      node --input-type=module -e '
+      import { execFileSync, spawnSync } from "node:child_process";
+      import { writeFileSync } from "node:fs";
+      import { resolve } from "node:path";
+      const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));
+      Object.assign(env, { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0", COPILOT_COMMIT_ATTRIBUTION: JSON.stringify({ version: 1, sessionId: "fixture-current-session", model: "fixture-current-model" }) });
+      const options = { cwd: resolve("repo"), env, encoding: "utf8", stdio: "pipe", timeout: 10000 };
+      const git = (...args) => execFileSync("git", args, options);
+      writeFileSync("message.txt", "Finalize notes\n");
+      git("add", "notes.txt");
+      const before = git("rev-parse", "HEAD");
+      const rejected = spawnSync("git", ["commit", "-F", "../message.txt"], options);
+      if (rejected.error) throw rejected.error;
+      if (rejected.status === null || rejected.status === 0 || !rejected.stderr.includes("commit-attribution: Missing attribution") || git("rev-parse", "HEAD") !== before) {
+        throw new Error("Fixture setup did not produce the expected real hook rejection with unchanged HEAD.");
+      }
+      writeFileSync("rejection.txt", rejected.stderr);
+      '
+  tags:
+    assets: skill:commit-attribution/commit
+    control: positive
+  graders:
+  - type: completed
+    name: recovery-completed
+  - type: skill-invocation
+    name: recovery-invokes-skill
+    config:
+      required: [commit]
+  - type: program
+    name: recovery-stored-git-state
+    config:
+      program: node
+      timeout: 30s
+      args:
+      - --input-type=module
+      - -e
+      - |
+        import { execFileSync, spawnSync } from "node:child_process";
+        import { existsSync, lstatSync, readdirSync } from "node:fs";
+        import { createHash } from "node:crypto";
+        import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+        import { check, json, runGrade, text } from "./.grading/common.mjs";
+        await runGrade("stored-git-state", (trajectory, workspace) => {
+          const hashes = {
+            "attribution.mts": "6f9a042071e0863841fc3295e72dfef736fe41cf18520f4a62cf004d1917010b",
+            "attribution-impl.mts": "6e1e68a620822894fba042ec51f27d6303895de108f3824e8858e7cd034bcb52",
+            "git-hook.mjs": "5d5bd044dcd4a5e1f42492f883d1b497ab0b8ebf6682132436257e16a1f8c550",
+            "SKILL.md": "283323bc905ce9ca820f3db1de6352ce8c8e050aad19bfbbe1b3e9cbedfcca85",
+          };
+          const hash = value => createHash("sha256").update(value).digest("hex");
+          const installed = file => text(workspace, "repo/.git/copilot-commit-attribution/" + file);
+          const repo = resolve(workspace, "repo");
+          if (!existsSync(join(repo, ".git")) || !lstatSync(join(repo, ".git")).isDirectory()) {
+            return [check("Fixture repository exists", false)];
+          }
+          const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));
+          Object.assign(env, { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0" });
+          const options = { cwd: repo, env, encoding: "utf8", stdio: "pipe", timeout: 10000 };
+          const head = spawnSync("git", ["rev-parse", "--verify", "HEAD"], options);
+          if (head.error) throw head.error;
+          if (head.status !== 0) return [check("Readable HEAD exists", false)];
+          const git = (...args) => execFileSync("git", ["-c", "core.fsmonitor=false", ...args], options);
+          const tree = "notes.txt\nunrelated.txt";
+          if (git("ls-tree", "-r", "--name-only", "HEAD").trim() !== tree) return [check("Only intended files committed", false)];
+          const messageFor = ref => {
+            const commit = git("cat-file", "commit", ref);
+            const separator = commit.indexOf("\n\n");
+            if (separator < 0) throw new Error("Malformed commit object.");
+            return commit.slice(separator + 2);
+          };
+          const amend = trajectory.stimulus.name === "commit-attribution-amends-with-historical-attribution";
+          const previous = "Add draft notes\n\nCo-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>\nCopilot-Session-Id: fixture-previous-session\nCopilot-Model: fixture-previous-model\n";
+          const message = messageFor("HEAD");
+          const count = git("rev-list", "--count", "HEAD").trim();
+          const trailers = execFileSync("git", ["-c", "trailer.separators=:", "interpret-trailers", "--no-divider", "--parse"], { ...options, input: message }).trim().split("\n");
+          const values = pattern => trailers.filter(line => pattern.test(line)).map(line => line.slice(line.indexOf(":") + 1).trim()).join("\n");
+          const activation = trajectory.events.find(event => event.type === "skill_activation" && event.data?.name === "commit")?.data;
+          if (!activation) return [check("Real commit skill activated", false)];
+          if (typeof activation.path !== "string" || !isAbsolute(activation.path)) throw new Error("Original skill path unavailable for hook verification.");
+          const skillDirectory = basename(activation.path) === "SKILL.md" ? dirname(activation.path) : activation.path;
+          if (basename(skillDirectory) !== "commit") throw new Error("Unexpected skill activation path.");
+          const originalRepo = join(dirname(skillDirectory), "repo");
+          const location = join(originalRepo, ".git", "copilot-commit-attribution");
+          const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
+          const dispatcher = [
+            "#!/bin/sh", "# Installed by commit-attribution; original hooks remain in their own directory.",
+            "original=" + quote(join(originalRepo, ".git", "hooks", "commit-msg")),
+            'if [ -n "$original" ] && [ -x "$original" ]; then', '  "$original" "$@" || exit $?', "fi",
+            'if [ "$${COPILOT_COMMIT_ATTRIBUTION+set}" = set ]; then',
+            "  exec " + quote(process.execPath) + " " + quote(join(location, "check.mjs")) + ' "$@"', "fi", "",
+          ].join("\n");
+          const checker = "import { checkMessage } from './git-hook.mjs';\ntry { checkMessage(process.argv[2]); }\ncatch (error) { console.error(`commit-attribution: $${error instanceof Error ? error.message : String(error)}`); process.exitCode = 1; }\n";
+          const state = json(workspace, "repo/.git/copilot-commit-attribution/state.json");
+          const oldHooks = join(repo, ".git", "hooks");
+          const hook = join(repo, ".git", "copilot-commit-attribution", "hooks", "commit-msg");
+          const config = spawnSync("git", ["config", "--path", "--get", "core.hooksPath"], options);
+          if (config.error) throw config.error;
+          if (config.status !== 0 && !(config.status === 1 && !config.stderr.trim())) throw new Error("Cannot inspect hook configuration: " + config.stderr);
+          const checks = [
+            check("Requested notes committed", git("show", "HEAD:notes.txt") === "Final notes.\n" && text(workspace, "repo/notes.txt") === "Final notes.\n"),
+            check("Unrelated versions preserved", git("show", "HEAD:unrelated.txt") === "Keep this committed content.\n" && text(workspace, "repo/unrelated.txt") === "Keep this uncommitted draft.\n"),
+            check("Only unrelated edit remains", git("status", "--porcelain=v1", "--untracked-files=all") === " M unrelated.txt\n"),
+            check("Correct history shape", count === (amend ? "1" : "2")),
+            check("Requested subject", git("log", "-1", "--format=%s").trim() === (amend ? "Add draft notes" : "Finalize notes")),
+            check("Final Copilot co-author", values(/^Co-authored-by:/i).split("\n").includes("Copilot <223556219+Copilot@users.noreply.github.com>")),
+            check("Correct session trailer", values(/^Copilot-Session-Id:/i) === (amend ? "fixture-previous-session" : "fixture-current-session")),
+            check("Correct model trailer", values(/^Copilot-Model:/i) === (amend ? "fixture-previous-model" : "fixture-current-model")),
+            check("Hook path preserved", config.status === 0 && config.stdout.trim() === join(location, "hooks")),
+            check("Real runtime preserved", hash(installed("git-hook.mjs")) === hashes["git-hook.mjs"]),
+            check("Executable guard preserved", installed("hooks/commit-msg") === dispatcher && existsSync(hook) && (lstatSync(hook).mode & 0o100) !== 0 && installed("check.mjs") === checker),
+            check("Installation state preserved", state?.version === 1 && state.originalPath === join(originalRepo, ".git", "hooks") && state.previousLocalPath === null && (!existsSync(oldHooks) || readdirSync(oldHooks).length === 0)),
+            check("Skill and harness preserved", hash(text(workspace, "commit/SKILL.md")) === hashes["SKILL.md"] && ["attribution.mts", "attribution-impl.mts", "git-hook.mjs"].every(file => hash(text(workspace, "harness/" + file)) === hashes[file])),
+            check("No remote configured", git("remote").trim() === ""),
+          ];
+          if (amend) checks.push(check("Historical message and final newline preserved", message === previous));
+          else checks.push(check("Parent message and files preserved", count === "2" && git("ls-tree", "-r", "--name-only", "HEAD^").trim() === tree && messageFor("HEAD^") === previous && git("show", "HEAD^:notes.txt") === "Draft notes.\n" && git("show", "HEAD^:unrelated.txt") === "Keep this committed content.\n"));
+          return checks;
+        });
+  - type: tool-calls
+    name: recovery-uses-message-file
+    config:
+      required:
+      - name: '(^|[./:_-])(bash|powershell|shell)$'
+        command: '\bcommit\b[\s\S]*(?:-F\s+|--file(?:=|\s+))[^\r\n]*message\.txt'
+  - type: tool-calls
+    name: recovery-no-recorded-bypass-or-push
+    config:
+      disallowed:
+      - name: '(^|[./:_-])(bash|powershell|shell)$'
+        command: '--no-verify|\b(commit-tree|update-ref)\b|core\.hooksPath\s*=|\b(unset|Remove-Item)\s+(env:)?COPILOT_COMMIT_ATTRIBUTION|\bgit\s+push\b|\bgh\s+(pr|release)\s+create\b'
+- name: commit-attribution-amends-with-historical-attribution
+  prompt: |
+    In repo/, amend the most recent commit to include the notes.txt update.
+    Keep its existing commit message and historical attribution unchanged.
+    Leave unrelated.txt and its uncommitted edit alone. This amendment is
+    explicitly approved. Verify the resulting stored message and remaining
+    changes. Do not create an additional commit, push, access the network,
+    edit the skill or harness, change Git configuration, or bypass the hook.
+    Report a blocker if you cannot finish.
+  tags:
+    assets: skill:commit-attribution/commit
+    control: positive
+  graders:
+  - type: completed
+    name: amendment-completed
+  - type: skill-invocation
+    name: amendment-invokes-skill
+    config:
+      required: [commit]
+  - type: program
+    name: amendment-stored-git-state
+    config:
+      program: node
+      timeout: 30s
+      args:
+      - --input-type=module
+      - -e
+      - |
+        import { execFileSync, spawnSync } from "node:child_process";
+        import { existsSync, lstatSync, readdirSync } from "node:fs";
+        import { createHash } from "node:crypto";
+        import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+        import { check, json, runGrade, text } from "./.grading/common.mjs";
+        await runGrade("stored-git-state", (trajectory, workspace) => {
+          const hashes = {
+            "attribution.mts": "6f9a042071e0863841fc3295e72dfef736fe41cf18520f4a62cf004d1917010b",
+            "attribution-impl.mts": "6e1e68a620822894fba042ec51f27d6303895de108f3824e8858e7cd034bcb52",
+            "git-hook.mjs": "5d5bd044dcd4a5e1f42492f883d1b497ab0b8ebf6682132436257e16a1f8c550",
+            "SKILL.md": "283323bc905ce9ca820f3db1de6352ce8c8e050aad19bfbbe1b3e9cbedfcca85",
+          };
+          const hash = value => createHash("sha256").update(value).digest("hex");
+          const installed = file => text(workspace, "repo/.git/copilot-commit-attribution/" + file);
+          const repo = resolve(workspace, "repo");
+          if (!existsSync(join(repo, ".git")) || !lstatSync(join(repo, ".git")).isDirectory()) {
+            return [check("Fixture repository exists", false)];
+          }
+          const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")));
+          Object.assign(env, { GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_NOSYSTEM: "1", GIT_TERMINAL_PROMPT: "0" });
+          const options = { cwd: repo, env, encoding: "utf8", stdio: "pipe", timeout: 10000 };
+          const head = spawnSync("git", ["rev-parse", "--verify", "HEAD"], options);
+          if (head.error) throw head.error;
+          if (head.status !== 0) return [check("Readable HEAD exists", false)];
+          const git = (...args) => execFileSync("git", ["-c", "core.fsmonitor=false", ...args], options);
+          const tree = "notes.txt\nunrelated.txt";
+          if (git("ls-tree", "-r", "--name-only", "HEAD").trim() !== tree) return [check("Only intended files committed", false)];
+          const messageFor = ref => {
+            const commit = git("cat-file", "commit", ref);
+            const separator = commit.indexOf("\n\n");
+            if (separator < 0) throw new Error("Malformed commit object.");
+            return commit.slice(separator + 2);
+          };
+          const amend = trajectory.stimulus.name === "commit-attribution-amends-with-historical-attribution";
+          const previous = "Add draft notes\n\nCo-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>\nCopilot-Session-Id: fixture-previous-session\nCopilot-Model: fixture-previous-model\n";
+          const message = messageFor("HEAD");
+          const count = git("rev-list", "--count", "HEAD").trim();
+          const trailers = execFileSync("git", ["-c", "trailer.separators=:", "interpret-trailers", "--no-divider", "--parse"], { ...options, input: message }).trim().split("\n");
+          const values = pattern => trailers.filter(line => pattern.test(line)).map(line => line.slice(line.indexOf(":") + 1).trim()).join("\n");
+          const activation = trajectory.events.find(event => event.type === "skill_activation" && event.data?.name === "commit")?.data;
+          if (!activation) return [check("Real commit skill activated", false)];
+          if (typeof activation.path !== "string" || !isAbsolute(activation.path)) throw new Error("Original skill path unavailable for hook verification.");
+          const skillDirectory = basename(activation.path) === "SKILL.md" ? dirname(activation.path) : activation.path;
+          if (basename(skillDirectory) !== "commit") throw new Error("Unexpected skill activation path.");
+          const originalRepo = join(dirname(skillDirectory), "repo");
+          const location = join(originalRepo, ".git", "copilot-commit-attribution");
+          const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
+          const dispatcher = [
+            "#!/bin/sh", "# Installed by commit-attribution; original hooks remain in their own directory.",
+            "original=" + quote(join(originalRepo, ".git", "hooks", "commit-msg")),
+            'if [ -n "$original" ] && [ -x "$original" ]; then', '  "$original" "$@" || exit $?', "fi",
+            'if [ "$${COPILOT_COMMIT_ATTRIBUTION+set}" = set ]; then',
+            "  exec " + quote(process.execPath) + " " + quote(join(location, "check.mjs")) + ' "$@"', "fi", "",
+          ].join("\n");
+          const checker = "import { checkMessage } from './git-hook.mjs';\ntry { checkMessage(process.argv[2]); }\ncatch (error) { console.error(`commit-attribution: $${error instanceof Error ? error.message : String(error)}`); process.exitCode = 1; }\n";
+          const state = json(workspace, "repo/.git/copilot-commit-attribution/state.json");
+          const oldHooks = join(repo, ".git", "hooks");
+          const hook = join(repo, ".git", "copilot-commit-attribution", "hooks", "commit-msg");
+          const config = spawnSync("git", ["config", "--path", "--get", "core.hooksPath"], options);
+          if (config.error) throw config.error;
+          if (config.status !== 0 && !(config.status === 1 && !config.stderr.trim())) throw new Error("Cannot inspect hook configuration: " + config.stderr);
+          const checks = [
+            check("Requested notes committed", git("show", "HEAD:notes.txt") === "Final notes.\n" && text(workspace, "repo/notes.txt") === "Final notes.\n"),
+            check("Unrelated versions preserved", git("show", "HEAD:unrelated.txt") === "Keep this committed content.\n" && text(workspace, "repo/unrelated.txt") === "Keep this uncommitted draft.\n"),
+            check("Only unrelated edit remains", git("status", "--porcelain=v1", "--untracked-files=all") === " M unrelated.txt\n"),
+            check("Correct history shape", count === (amend ? "1" : "2")),
+            check("Requested subject", git("log", "-1", "--format=%s").trim() === (amend ? "Add draft notes" : "Finalize notes")),
+            check("Final Copilot co-author", values(/^Co-authored-by:/i).split("\n").includes("Copilot <223556219+Copilot@users.noreply.github.com>")),
+            check("Correct session trailer", values(/^Copilot-Session-Id:/i) === (amend ? "fixture-previous-session" : "fixture-current-session")),
+            check("Correct model trailer", values(/^Copilot-Model:/i) === (amend ? "fixture-previous-model" : "fixture-current-model")),
+            check("Hook path preserved", config.status === 0 && config.stdout.trim() === join(location, "hooks")),
+            check("Real runtime preserved", hash(installed("git-hook.mjs")) === hashes["git-hook.mjs"]),
+            check("Executable guard preserved", installed("hooks/commit-msg") === dispatcher && existsSync(hook) && (lstatSync(hook).mode & 0o100) !== 0 && installed("check.mjs") === checker),
+            check("Installation state preserved", state?.version === 1 && state.originalPath === join(originalRepo, ".git", "hooks") && state.previousLocalPath === null && (!existsSync(oldHooks) || readdirSync(oldHooks).length === 0)),
+            check("Skill and harness preserved", hash(text(workspace, "commit/SKILL.md")) === hashes["SKILL.md"] && ["attribution.mts", "attribution-impl.mts", "git-hook.mjs"].every(file => hash(text(workspace, "harness/" + file)) === hashes[file])),
+            check("No remote configured", git("remote").trim() === ""),
+          ];
+          if (amend) checks.push(check("Historical message and final newline preserved", message === previous));
+          else checks.push(check("Parent message and files preserved", count === "2" && git("ls-tree", "-r", "--name-only", "HEAD^").trim() === tree && messageFor("HEAD^") === previous && git("show", "HEAD^:notes.txt") === "Draft notes.\n" && git("show", "HEAD^:unrelated.txt") === "Keep this committed content.\n"));
+          return checks;
+        });
+  - type: tool-calls
+    name: amendment-no-recorded-bypass-or-push
+    config:
+      disallowed:
+      - name: '(^|[./:_-])(bash|powershell|shell)$'
+        command: '--no-verify|\b(commit-tree|update-ref)\b|core\.hooksPath\s*=|\b(unset|Remove-Item)\s+(env:)?COPILOT_COMMIT_ATTRIBUTION|\bgit\s+push\b|\bgh\s+(pr|release)\s+create\b'
+scoring:
+  threshold: 1

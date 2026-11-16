@@ -65,7 +65,6 @@ a later commit; pin the commit their own catalog uses.
 
 ```sh
 npm run check-remotes
-npm run check-remotes -- anarlog
 ```
 
 This uses the network, so `npm run verify` doesn't run it. For each remote
@@ -73,17 +72,21 @@ entry it confirms that the repository and SHA exist, that `plugin.json` is at
 `path` at that SHA, and that its `name` and `version` match the catalog. It
 reads the manifest the way Copilot CLI does: an Agent Plugins `plugin.json` at
 `path` first, then the legacy locations (`.plugin/plugin.json`, `plugin.json`,
-`.github/plugin/plugin.json`, and `.claude-plugin/plugin.json`), and it notes a
-legacy manifest, since other hosts may not load one. It also notes when `ref`
-has moved away from the pin and when the repository has a newer release. It
-authenticates with `GH_TOKEN` or `GITHUB_TOKEN`, or your GitHub CLI login.
+`.github/plugin/plugin.json`, and `.claude-plugin/plugin.json`). Supported
+Agent Plugins schemas are 1.0.0 and 1.1.0; an unsupported version fails.
+If `ref` is supplied, a missing or mismatched ref now fails rather than
+producing a note. Authentication uses `gh api` without extracting its token.
+
+The retained diagnostic command
+`node .github/scripts/check-remotes.mjs <name>` can still inspect a selected
+entry and describe release or ref drift. It is not the strict pin check.
 
 ## Keep pins current
 
 Nothing updates remote pins for you. Dependabot doesn't read `marketplace.json`.
 Pick a cadence, such as once a month or when upstream announces a release:
 
-1. Run `npm run check-remotes` and read its notes.
+1. Run `npm run check-remotes` and read any failures.
 2. Review what changed upstream between the pinned SHA and the new one.
 3. Update `sha`, `ref`, and `version` together, and run `npm run verify` and
    `npm run check-remotes`.

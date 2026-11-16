@@ -17,7 +17,7 @@ project you agree to abide by its terms.
 - This is `@digitarald`'s personal experiment bin. Broken ideas are welcome;
   hidden risks and invented reliability claims aren't. Useful, evaluated
   plugins can graduate to [Agent Toolbelt](https://github.com/digitarald/agent-toolbelt).
-- Install Node.js 22.14 or newer and run `npm ci`.
+- Install Node.js 22.15 or newer (24+ recommended) and run `npm ci`.
 - The **New plugin** issue form is available to discuss an experiment's scope
   and risks, but an issue is not required for personal experiments.
 - Use only synthetic data in examples, fixtures, and evals. Never commit secrets,
@@ -25,7 +25,7 @@ project you agree to abide by its terms.
 
 ## Add or change a plugin
 
-Start a new plugin with `npm run new-plugin -- <name>`, optionally with
+Use `npm run new-plugin -- <name>` for a plugin shell, optionally with
 `--with agent`, `--with mcp`, `--with hook`, `--with extension`, or
 `--no-skill`. It creates the files and registrations below, including optional
 eval scaffolding. Replace the scaffolded content with your experiment. See
@@ -40,20 +40,23 @@ Change these together in one pull request:
    plugin or this repository's `node_modules` at runtime.
 2. **Version**: bump `version` in `plugin.json` and the matching
    [marketplace.json](marketplace.json) entry, and add a `## <version>` heading
-   to `CHANGELOG.md`. Any change to a file under `plugins/<name>/` needs a new
-   version, because that's what people install. Use a patch version for fixes
+   to `CHANGELOG.md` for changes since a known released base. Keep the initial
+   version for an unreleased first release, and don't bump twice. If release
+   status is unknown, ask rather than guessing from a PR base. Use a patch version for fixes
    and wording, a minor version for new behavior or options, and a major version
    when existing use breaks. Changes to evals, tests, and docs outside the
    plugin don't need one.
 3. **Catalog and settings**: keep the catalog `description` identical to the
-   manifest, and enable local plugins in
-   [.github/copilot/settings.json](.github/copilot/settings.json). Never enable
-   a remote plugin there.
+   manifest. [.github/copilot/settings.json](.github/copilot/settings.json)
+   enables local plugins for development. Never enable remote plugins there.
 4. **[.vally.yaml](.vally.yaml)**: list the plugin's `skills` directory under
    `paths.skills`, and add any path an eval needs under `params`.
 5. **Optional evals** under `evals/<name>/`: no behavioral evals are required
    for publication here. If you add them, use real invocation and outcome
    assertions and describe what you actually ran.
+   The migrated template uses `evals/<name>/skills/<skill>/eval.yaml` and
+   `evals/<name>/agents/<agent>/eval.yaml`, with custom graders beside the eval.
+   Shared fixtures and graders go in `evals/_shared/`.
    See [Evals](docs/evals.md#write-an-eval).
 6. **Tests** under `test/` for code you add, such as servers, hooks, and graders.
    Name support files after the plugin, such as `test/<name>-hook.test.mjs` and
@@ -105,7 +108,7 @@ any access requirement. Local checks never download or run upstream code; run
 Evals are optional. The commands below are available when explicitly requested,
 not prerequisites for publishing an experiment.
 
-`npm run eval:smoke`, `npm run eval`, and the **Behavioral evals** workflow run
+`npm run eval:smoke`, `npm run eval`, `npm run eval:models`, and the **Behavioral evals** workflow run
 real Copilot sessions and spend AI credits. Run only the plugins you changed.
 `--plugin` selects every spec for a plugin, including nested ones such as
 `evals/<name>/agent/eval.yaml`. Check the selection for free, then run and
@@ -113,11 +116,14 @@ report on the same selection:
 
 ```sh
 npm run eval:list -- --plugin <name>
-node scripts/evals.mjs eval --plugin <name>
-npm run eval:report -- --plugin <name>
+node .github/scripts/evals.mjs eval --plugin <name>
+npm run eval:report:selection -- --plugin <name>
 ```
 
 Repeat `--plugin` for each plugin you changed.
+Use `npm run eval:report` for the new saved-run summary and `npm run
+eval:compare` for baseline comparisons. Before any paid command, follow
+[execution and scoped authentication](docs/checks-and-evals.md#execution-and-authentication).
 
 Say in your pull request which evals you ran and what they showed. Inspect a
 failed trajectory before changing an assertion, and don't loosen a check just

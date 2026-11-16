@@ -1,8 +1,14 @@
-# Vally project configuration, also read by scripts/validate.mjs,
-# scripts/validate-evals.mjs, and scripts/evals.mjs. When you add, rename, or
+# Vally project configuration, also read by .github/scripts/validate.mjs,
+# .github/scripts/validate-evals.mjs, and .github/scripts/evals.mjs. When you add, rename, or
 # remove a plugin with skills, update paths.skills; npm run verify checks it.
 paths:
-  skills: [ plugins/decide/skills, plugins/commit-attribution/skills ]
+  skills:
+    [
+      plugins/decide/skills,
+      plugins/session-lens/skills,
+      plugins/session-todos/skills,
+      plugins/commit-attribution/skills
+    ]
   evals:
     - evals
   # eval.yaml is Vally's default. *.eval.yaml lets one folder hold several
@@ -10,21 +16,25 @@ paths:
   evalFilenames:
     - eval.yaml
     - "*.eval.yaml"
-  results: vally-results
-# Values containing a slash are repository-relative paths. The launcher and CI
-# pass them to evals as absolute paths.
+  results: evals/results
+# Values containing a slash are repository-relative paths. The compatibility
+# launcher passes them to evals as absolute paths; native runs use Vally's rules.
 params:
   # The headless canvas host that drives a real canvas extension in evals, and
   # each extension it loads. See docs/evals.md#extensions.
   CANVAS_HOST: evals/support/canvas-host.mjs
+  SESSION_LENS_EXTENSION: plugins/session-lens/com.github.copilot/extensions/session-lens/extension.mjs
 suites:
   smoke:
-    description: Representative model-backed coverage for every local skill, agent,
-      hook, extension, and MCP tool
+    description: Representative cases from the optional evals
     filter:
       suite: smoke
   full:
-    description: Positive, negative, and boundary cases for every local plugin
+    description: Every retained optional eval case
     evals:
       - evals/**/eval.yaml
       - evals/**/*.eval.yaml
+  extended:
+    description: Deeper optional behavioral checks beyond the quick smoke cases
+    filter:
+      suite: extended

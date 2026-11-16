@@ -19,17 +19,17 @@ malicious code.
 | An event fires, such as a successful edit | Hooks run, automatically, without asking each time. |
 | The model picks a skill, agent, or tool | Skills and agents shape what the model does next; tools run their code. |
 
-Opening a trusted checkout of this repository counts as installing every local
-plugin: the [repository overlay](../.github/copilot/settings.json) enables them
-all for that checkout. Only trust the checkout if you'd install all of its
-plugins.
+In supported hosts, a trusted checkout's
+[repository overlay](../.github/copilot/settings.json) enables local plugins
+for development. Remote entries remain opt-in. Review local plugins before
+trusting the checkout.
 
 ## Data flow
 
 | Data | Where it goes | Who can read it, and for how long |
 |---|---|---|
 | Prompts, files the agent reads, tool arguments and results, hook messages, MCP results, and canvas notes the agent reads | Copilot and the model behind it | Set by your Copilot plan and policies, not by this template. See the [GitHub Copilot Trust Center](https://copilot.github.trust.page/). |
-| Local eval results in `vally-results/`: results, a report, JUnit, and session evidence with transcripts | Your disk | Gitignored. Delete them when you're done. |
+| Local eval results in `evals/results/` (older runs in `vally-results/`), including session evidence | Your disk | Gitignored. Delete them when you're done. |
 | The eval job in CI: Vally's log and the report in the job summary | The workflow run | Anyone who can read the repository's Actions runs. Logs follow the repository's [retention setting](https://docs.github.com/en/organizations/managing-organization-settings/configuring-the-retention-period-for-github-actions-artifacts-and-logs-in-your-organization) (90 days by default). |
 | The eval job's results artifact, which includes transcripts | A workflow artifact | Only when `EVALS_UPLOAD_RESULTS` is `true`. Kept for 7 days. |
 | Vally telemetry | Vally's telemetry service, unless turned off | `VALLY_TELEMETRY_OPTOUT=1` is set by `validate.yml`, the local launcher, and the eval job. |
@@ -47,9 +47,8 @@ cache, lives wherever its code puts it. The review table below asks for it.
 ## Dependencies
 
 - Every development dependency is pinned to an exact version, and the lockfile
-  records a sha512 integrity hash for each package. The template resolves them
-  all from `registry.npmjs.org`; if your team uses a mirror, `npm ci` follows
-  your npm configuration instead.
+  records a sha512 integrity hash for each package. Registry-specific tarball
+  URLs are omitted, so `npm ci` follows your npm registry configuration.
 - `npm ci` runs install scripts. Three packages have one: `@vscode/deviceid`,
   `esbuild`, and `koffi`. Use `npm ci --ignore-scripts` only if you've checked
   that the tools you need still work without them.

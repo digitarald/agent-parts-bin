@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { typeScriptSources } from '../scripts/typecheck.mjs';
+import { typeScriptSources } from '../.github/scripts/typecheck.mjs';
 
 test('plugin type checking discovers native TypeScript hooks without dependency sources', async t => {
   const root = await mkdtemp(join(tmpdir(), 'commit-attribution-types-'));

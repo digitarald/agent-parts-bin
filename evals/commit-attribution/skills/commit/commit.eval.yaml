@@ -1,0 +1,73 @@
+name: commit-attribution-message
+description: Explore commit-message attribution and routing without making commits or testing hook installation.
+type: capability
+defaults:
+  executor: copilot-sdk
+  timeout: 2m
+  runs: 1
+tags:
+  suite: smoke
+agent_environment:
+  skills:
+    - ../../../../plugins/commit-attribution/skills/commit
+stimuli:
+  - name: commit-attribution-drafts-attributed-message
+    prompt: |
+      Draft a Git commit message for this supplied change: the note parser
+      now rejects empty input before processing it.
+      Use the subject "Reject empty note input" and omit a body paragraph.
+      Return only the complete commit message as plain text.
+      This is message drafting only: do not inspect repository files, run
+      commands, change files, or create a commit.
+      No runtime session or model metadata has been supplied.
+    tags:
+      assets: skill:commit-attribution/commit
+      control: positive
+    graders:
+      - type: completed
+      - type: skill-invocation
+        name: invokes-commit-skill
+        config:
+          required: [commit]
+      - type: output-matches
+        name: complete-message-with-final-coauthor-trailer
+        config:
+          pattern: '^\s*Reject empty note input(?:\r?\n){2,}Co-authored-by: Copilot <223556219\+Copilot@users\.noreply\.github\.com>\s*$'
+      - type: output-matches
+        name: does-not-invent-runtime-attribution
+        config:
+          pattern: 'Copilot-(Session-Id|Model)\s*:'
+          negate: true
+      - type: tool-calls
+        name: drafting-no-shell-mutation-or-delegation
+        config:
+          disallowed:
+            - name: '(^|[./:_-])(bash|powershell|shell|exec_command|edit|create|write_file|apply_patch|task)$'
+      - type: diff-empty
+        name: drafting-leaves-workspace-unchanged
+  - name: commit-attribution-ignores-status-question
+    prompt: |
+      Does running git status create a commit?
+      Answer only Yes or No. Do not inspect files, run commands, or change anything.
+    tags:
+      assets: skill:commit-attribution/commit
+      control: negative
+    graders:
+      - type: completed
+      - type: skill-invocation
+        name: does-not-invoke-commit-skill
+        config:
+          disallowed: [commit]
+      - type: output-matches
+        name: correctly-explains-status
+        config:
+          pattern: '^\s*[Nn]o[.!]?\s*$'
+      - type: tool-calls
+        name: status-no-shell-mutation-or-delegation
+        config:
+          disallowed:
+            - name: '(^|[./:_-])(bash|powershell|shell|exec_command|edit|create|write_file|apply_patch|task)$'
+      - type: diff-empty
+        name: status-leaves-workspace-unchanged
+scoring:
+  threshold: 1

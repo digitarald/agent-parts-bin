@@ -29,11 +29,11 @@ function linkedCopy(t, files) {
 
 test("scripts run main() when started through a linked directory", (t) => {
   const linked = linkedCopy(t, [
-    ["scripts/entrypoint.mjs", "scripts/entrypoint.mjs"],
-    ["scripts/typecheck.mjs", "scripts/typecheck.mjs"],
+    [".github/scripts/entrypoint.mjs", ".github/scripts/entrypoint.mjs"],
+    [".github/scripts/typecheck.mjs", ".github/scripts/typecheck.mjs"],
   ]);
   // With no node_modules next to it, main() must run and report missing dependencies.
-  const result = spawnSync(process.execPath, [join(linked, "scripts", "typecheck.mjs")], { cwd: linked, encoding: "utf8" });
+  const result = spawnSync(process.execPath, [join(linked, ".github/scripts", "typecheck.mjs")], { cwd: linked, encoding: "utf8" });
   assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
   assert.match(result.stderr, /Dependencies aren't installed/);
 });
@@ -52,13 +52,17 @@ test("the format-json hook runs when its plugin directory is linked", (t) => {
 });
 
 test("entrypoint checks compare real paths everywhere", () => {
-  const sources = ["scripts", "plugins", "evals"].flatMap((directory) => {
+  const files = (directory) => {
     if (!existsSync(join(root, directory))) return [];
-    return readdirSync(join(root, directory), { recursive: true })
-      .map((path) => `${directory}/${path.split(sep).join("/")}`)
-      .filter((path) => /\.(?:mjs|js|ts)$/.test(path) && !path.split("/").some((part) => part === "dist" || part === "node_modules"));
-  });
+    return readdirSync(join(root, directory), { withFileTypes: true })
+      .filter((entry) => !entry.name.startsWith(".") && !["dist", "node_modules"].includes(entry.name))
+      .flatMap((entry) => {
+        const path = `${directory}/${entry.name}`;
+        return entry.isDirectory() ? files(path) : /\.(?:mjs|js|ts)$/.test(path) ? [path] : [];
+      });
+  };
+  const sources = [".github/scripts", "plugins", "evals"].flatMap(files);
   const fragile = /import\.meta\.url\s*===\s*pathToFileURL\(|resolve\(process\.argv\[1\]\)\s*===\s*fileURLToPath\(/;
   const offenders = sources.filter((path) => fragile.test(readFileSync(join(root, path), "utf8")));
-  assert.deepEqual(offenders, [], "Use isEntrypoint() from scripts/entrypoint.mjs, or compare realpathSync() results in self-contained files.");
+  assert.deepEqual(offenders, [], "Use isEntrypoint() from .github/scripts/entrypoint.mjs, or compare realpathSync() results in self-contained files.");
 });

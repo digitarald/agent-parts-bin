@@ -6,6 +6,10 @@ node_modules/
 .env.*
 !.env.example
 vally-results/
+evals/results/
 .vally/
 # Isolated Copilot homes from local install checks.
 .copilot-home/
+dist/
+test-results/
+playwright-report/

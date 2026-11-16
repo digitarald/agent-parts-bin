@@ -10,11 +10,12 @@ read [AGENTS.md](../AGENTS.md) for the maintenance rules and
 
 - Keep each plugin self-contained, and change its manifest, catalog entry,
   changelog, `.vally.yaml` entries, and any existing evals together. Evals are
-  optional and are not part of the `verify` publishing gate. Use
-  `npm run new-plugin`, `npm run remove-plugin` (or `remove-example`), and
-  `npm run rename-marketplace` instead of editing registrations by hand.
+  optional and are not part of the `verify` publishing gate. Use the retained
+  maintenance commands. Keep template updates limited to infrastructure;
+  don't restore removed template plugins or their evals. The repository overlay
+  enables local plugins, never remote entries.
 - Run `npm run build` after changing generated-file sources, then `npm run verify`.
-- Don't run `npm run eval`, `npm run eval:smoke`, or the evals workflow unless
+- Don't run `npm run eval`, `npm run eval:smoke`, `npm run eval:models`, or the evals workflow unless
   asked; they spend AI credits.
   `npm run eval:list` and `npm run check-remotes` don't call a model.
 

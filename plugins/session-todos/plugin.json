@@ -1,0 +1,7 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "session-todos",
+  "version": "0.1.0",
+  "description": "Follow the current session todos, dependencies, and recent changes without model calls.",
+  "license": "MIT"
+}

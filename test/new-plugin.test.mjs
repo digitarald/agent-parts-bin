@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { addToReadme, newPlugin, repositoryName } from "../scripts/new-plugin.mjs";
-import { renameMarkdown } from "../scripts/rename-marketplace.mjs";
-import { launcherOptions, specsForPlugins } from "../scripts/evals.mjs";
-import { ownedPaths } from "../scripts/examples.mjs";
-import { assertRemovable, removePlugins } from "../scripts/remove-plugin.mjs";
-import { frontmatter } from "../scripts/catalog.mjs";
+import { addToReadme, newPlugin, repositoryName } from "../.github/scripts/new-plugin.mjs";
+import { renameMarkdown } from "../.github/scripts/rename-marketplace.mjs";
+import { launcherOptions, specsForPlugins } from "../.github/scripts/evals.mjs";
+import { ownedPaths } from "../.github/scripts/examples.mjs";
+import { assertRemovable, removePlugins } from "../.github/scripts/remove-plugin.mjs";
+import { frontmatter } from "../.github/scripts/catalog.mjs";
 import { existsSync, readdirSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { parse } from "yaml";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const script = (name, ...args) => spawnSync(process.execPath, [`scripts/${name}`, ...args], { cwd: root, encoding: "utf8", timeout: 60_000 });
+const script = (name, ...args) => spawnSync(process.execPath, [`.github/scripts/${name}`, ...args], { cwd: root, encoding: "utf8", timeout: 60_000 });
 // Every eval spec under evals/<plugin>/, as repository paths.
 const readEvalsSync = () => readdirSync(join(root, "evals"), { recursive: true, withFileTypes: true })
   .filter((entry) => entry.isFile() && /(?:^|\.)eval\.ya?ml$/.test(entry.name))
@@ -93,17 +93,17 @@ test("the launcher lists a selection for free, and every script explains itself"
   const listed = script("evals.mjs", "eval", "--suite", "smoke", "--list");
   assert.equal(listed.status, 0, listed.stderr);
   assert.match(listed.stdout, /^Would run \d+ cases? from \d+ specs?\.|^There are no eval specs yet/);
-  if (listed.stdout.startsWith("Would run")) assert.match(listed.stdout, /node scripts\/evals\.mjs eval --suite smoke/);
+  if (listed.stdout.startsWith("Would run")) assert.match(listed.stdout, /node \.github\/scripts\/evals\.mjs eval --suite smoke/);
   // With no selection, it's the full suite, and both printed commands work as shown.
   const all = script("evals.mjs", "eval", "--list", "--model", "gpt-5.4");
   assert.equal(all.status, 0, all.stderr);
   if (all.stdout.startsWith("Would run")) {
-    assert.match(all.stdout, /node scripts\/evals\.mjs eval --suite full --model gpt-5\.4\n/);
-    assert.match(all.stdout, /npm run eval:report -- --suite full\n/);
+    assert.match(all.stdout, /node \.github\/scripts\/evals\.mjs eval --suite full --model gpt-5\.4\n/);
+    assert.match(all.stdout, /npm run eval:report:selection -- --suite full\n/);
   }
   for (const [name, args, pattern] of [
-    ["evals.mjs", ["--help"], /Usage: node scripts\/evals\.mjs/],
-    ["eval-report.mjs", ["--help"], /Usage: npm run eval:report/],
+    ["evals.mjs", ["--help"], /Usage: node \.github\/scripts\/evals\.mjs/],
+    ["legacy-eval-report.mjs", ["--help"], /Usage: npm run eval:report:selection/],
     ["new-plugin.mjs", ["--help"], /--with hook/],
     ["remove-plugin.mjs", ["--help"], /--all/],
     ["rename-marketplace.mjs", ["--help"], /--repo <OWNER\/REPO>/],
@@ -114,8 +114,8 @@ test("the launcher lists a selection for free, and every script explains itself"
     assert.match(result.stdout, pattern, name);
   }
   for (const [name, args, pattern] of [
-    ["eval-report.mjs", ["--bogus"], /Unknown option '--bogus'\. Run npm run eval:report -- --help/],
-    ["eval-report.mjs", ["--suite", "smoke", "--run-dir", "vally-results/not-a-run"], /results\.jsonl doesn't exist/],
+    ["legacy-eval-report.mjs", ["--bogus"], /Unknown option '--bogus'\. Run npm run eval:report:selection -- --help/],
+    ["legacy-eval-report.mjs", ["--suite", "smoke", "--run-dir", "vally-results/not-a-run"], /results\.jsonl doesn't exist/],
     ["evals.mjs", ["frobnicate"], /Unknown command frobnicate/],
     ["new-plugin.mjs", ["x", "--with", "nope"], /Unknown --with value: nope/],
     ["new-plugin.mjs", ["x", "--no-skill"], /needs at least one asset/],
@@ -154,7 +154,7 @@ test("removal refuses anything that isn't a plugin name, before it touches the f
   const directory = await mkdtemp(join(tmpdir(), "starter-remove-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
   await writeFile(join(directory, "marketplace.json"), JSON.stringify({ name: "fixture", owner: { name: "Test" }, plugins: [] }));
-  for (const file of ["docs/keep.md", "scripts/keep.mjs", "plugins/real/plugin.json"]) {
+  for (const file of ["docs/keep.md", ".github/scripts/keep.mjs", "plugins/real/plugin.json"]) {
     await mkdir(join(directory, file, ".."), { recursive: true });
     await writeFile(join(directory, file), "sentinel");
   }
@@ -166,11 +166,11 @@ test("removal refuses anything that isn't a plugin name, before it touches the f
   }
   // One bad name stops the whole request, even with a valid one beside it.
   await assert.rejects(removePlugins(["real", "../docs"], { directory }), /isn't a plugin name/);
-  for (const file of ["docs/keep.md", "scripts/keep.mjs", "plugins/real/plugin.json"]) assert.ok(existsSync(join(directory, file)), file);
+  for (const file of ["docs/keep.md", ".github/scripts/keep.mjs", "plugins/real/plugin.json"]) assert.ok(existsSync(join(directory, file)), file);
   await assert.rejects(removePlugins(["ghost"], { directory }), /No plugin named ghost/);
   // Deletion is limited to plugins/, evals/, test/, and the examples guide.
   for (const path of ["plugins/real", "evals/real", "test/real.test.mjs", "docs/examples.md"]) assert.doesNotThrow(() => assertRemovable(directory, path), path);
-  for (const path of ["plugins", "plugins/../docs", "../plugins/x", "docs/keep.md", "scripts/x.mjs", outside]) {
+  for (const path of ["plugins", "plugins/../docs", "../plugins/x", "docs/keep.md", ".github/scripts/x.mjs", outside]) {
     assert.throws(() => assertRemovable(directory, path), /Refusing to remove/, path);
   }
   const cli = script("remove-plugin.mjs", "../scripts", "--dry-run");
@@ -205,6 +205,41 @@ test("a long plugin name with an agent is refused before anything is written, an
   assert.ok(spec.stimuli.every((stimulus) => !stimulus.agent_environment?.files));
   // A plugin name can still use all 64 characters without an agent.
   await newPlugin("c".repeat(64), { directory });
+  assert.deepEqual(JSON.parse(await readFile(join(directory, ".github/copilot/settings.json"), "utf8")).enabledPlugins, {
+    [`${name}@fixture`]: true,
+    [`${"c".repeat(64)}@fixture`]: true,
+  });
+});
+
+test("removal prunes retired skills from surviving eval cohorts without removing other graders", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "starter-cohort-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await mkdir(join(directory, ".github/copilot"), { recursive: true });
+  await writeFile(join(directory, "marketplace.json"), JSON.stringify({ name: "fixture", owner: { name: "Test" }, plugins: [] }));
+  await writeFile(join(directory, ".github/copilot/settings.json"), JSON.stringify({ enabledPlugins: {} }));
+  await writeFile(join(directory, ".vally.yaml"), "paths:\n  skills: []\n");
+  await newPlugin("retired", { directory });
+  await newPlugin("kept", { directory });
+  const path = join(directory, "evals/kept/eval.yaml");
+  const spec = parse(await readFile(path, "utf8"));
+  spec.agent_environment.skills.push("../../plugins/retired/skills/retired");
+  spec.stimuli[1].graders.find((grader) => grader.type === "skill-invocation").config.disallowed.push("retired");
+  const { stringify } = await import("yaml");
+  await writeFile(path, stringify(spec));
+  await writeFile(join(directory, ".vally.yaml"), "paths:\n  skills: [plugins/retired/skills, plugins/kept/skills]\n  results: evals/results\n");
+  const evidence = "<!-- plugin:retired -->\nSaved evidence must not be pruned.\n<!-- /plugin:retired -->\n";
+  for (const folder of [".copilot/evals/results/run", "evals/results/run"]) {
+    await mkdir(join(directory, folder), { recursive: true });
+    await writeFile(join(directory, folder, "README.md"), evidence);
+  }
+  await removePlugins(["retired"], { directory });
+  for (const folder of [".copilot/evals/results/run", "evals/results/run"]) {
+    assert.equal(await readFile(join(directory, folder, "README.md"), "utf8"), evidence);
+  }
+  const remaining = parse(await readFile(path, "utf8"));
+  assert.deepEqual(remaining.agent_environment.skills, ["../../plugins/kept/skills/kept"]);
+  assert.deepEqual(remaining.stimuli[1].graders.find((grader) => grader.type === "skill-invocation").config.disallowed, ["kept"]);
+  assert.deepEqual(remaining.stimuli[0].graders, spec.stimuli[0].graders);
 });
 
 test("lint --plugin lints every selected spec and the plugin's skills", (t) => {
@@ -230,10 +265,10 @@ test("npm run verify explains missing dependencies instead of crashing", () => {
   const output = execFileSync(process.execPath, ["--input-type=module", "--eval", `
     import { cpSync, mkdirSync, mkdtempSync } from "node:fs"; import { join } from "node:path"; import { tmpdir } from "node:os"; import { spawnSync } from "node:child_process";
     const dir = mkdtempSync(join(tmpdir(), "starter-nodeps-"));
-    mkdirSync(join(dir, "scripts"));
-    cpSync(${JSON.stringify(join(root, "scripts/typecheck.mjs"))}, join(dir, "scripts/typecheck.mjs"));
-    cpSync(${JSON.stringify(join(root, "scripts/entrypoint.mjs"))}, join(dir, "scripts/entrypoint.mjs"));
-    const result = spawnSync(process.execPath, [join(dir, "scripts/typecheck.mjs")], { cwd: dir, encoding: "utf8" });
+    mkdirSync(join(dir, ".github/scripts"), { recursive: true });
+    cpSync(${JSON.stringify(join(root, ".github/scripts/typecheck.mjs"))}, join(dir, ".github/scripts/typecheck.mjs"));
+    cpSync(${JSON.stringify(join(root, ".github/scripts/entrypoint.mjs"))}, join(dir, ".github/scripts/entrypoint.mjs"));
+    const result = spawnSync(process.execPath, [join(dir, ".github/scripts/typecheck.mjs")], { cwd: dir, encoding: "utf8" });
     process.stdout.write(JSON.stringify({ status: result.status, stderr: result.stderr }));
   `], { encoding: "utf8" });
   const result = JSON.parse(output);

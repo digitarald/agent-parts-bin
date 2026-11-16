@@ -127,7 +127,7 @@ and canvas extensions. To add another type, or to understand what it did:
    [.vally.yaml](../.vally.yaml) so Vally lints them.
 5. Keep the plugin self-contained. Never import a sibling plugin or this
    repository's `node_modules` at runtime. If an MCP server needs dependencies,
-   write it as `src/server.ts`. [scripts/build.mjs](../scripts/build.mjs) finds
+   write it as `src/server.ts`. [.github/scripts/build.mjs](../.github/scripts/build.mjs) finds
    every `plugins/*/src/server.ts` and bundles it into `dist/server.mjs` with its
    license notices, replacing `__PLUGIN_VERSION__` with the version in
    `plugin.json`. Eval graders in `evals/graders/src/` are bundled the same way.

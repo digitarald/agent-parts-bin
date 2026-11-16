@@ -5,14 +5,52 @@ skill, calls the right tool or agent, and produces the right outcome.
 [Vally](https://microsoft.github.io/vally/) runs them. It's a development
 dependency pinned in `package.json`; installed plugins never need it.
 
+The commit-attribution evals cover two levels:
+
+- [Smoke](../evals/commit-attribution/skills/commit/commit.eval.yaml) checks
+  attributed-message drafting and a nearby Git question that should not invoke
+  the commit skill.
+- [Extended](../evals/commit-attribution/skills/commit/git-extended.eval.yaml)
+  checks a scoped commit, recovery from a rejected message, and an explicitly
+  requested amendment that preserves historical attribution.
+
+Both definitions passed static validation. Neither has been run against a
+model. Template-plugin evals are intentionally not included.
+
+Use `tags.suite: smoke` for quick checks and `tags.suite: extended` for deeper
+cases. The `smoke` and `extended` suites filter those tags; `full` selects all
+evals. The existing manual GitHub workflow offers `smoke` and `full`; `full`
+includes the extended cases without changing the CI test command.
+
+The smoke cases do not create commits. When run, the extended setup creates a
+disposable repository, installs the real Git hook, and supplies synthetic
+session/model identifiers. Graders inspect stored Git objects, final trailers,
+uncommitted edits, and the installed guard rather than trusting the agent's
+summary. The recovery setup must observe a real rejection with unchanged HEAD.
+The amendment check compares the complete historical message, including its
+final newline.
+
+These are POSIX fixtures requiring Node.js 22.18 or newer and a full-engine
+runner. Execution compatibility, setup, graders, and model behavior remain
+unverified. Native plugin discovery and session/model lookup need separate
+verification; staging a skill alone does not enable its hooks. These evals do
+not establish PR attribution, Windows behavior, comprehensive bypass detection,
+network isolation, or rollout reliability.
+
+The extended graders pin SHA-256 hashes of the skill and plugin scripts so
+the agent cannot change those inputs and still pass their integrity checks.
+Update the hashes in all three grader blocks when changing those sources.
+The blocks are repeated because the current authoring validator rejects YAML
+aliases. Literal `${...}` text uses Vally's `$${...}` escape.
+
+The separate real-Git tests in `test/commit-attribution.test.mts` also exercise
+hook behavior with synthetic runtime context. They remain excluded from the
+`npm test` glob and the CI verification gate.
+
 ```sh
 npm ci
 npm run verify                         # model-free, free
 npm run eval:list -- --suite smoke     # free: lists the cases a run would select
-npm run eval:smoke                     # real Copilot sessions, costs AI credits
-npm run eval:report -- --suite smoke
-npm run eval                           # every case, costs more
-npm run eval:report -- --suite full
 ```
 
 Evals are optional in Agent Parts Bin. `verify` runs source checks, the
@@ -20,9 +58,10 @@ generated-file freshness check, and model-free tests. It does not require eval
 coverage or run strict Vally linting. To check optional evals, run
 `npm run eval:check` and `npm run eval:lint` explicitly. Those commands apply
 the template's full coverage rules and may reject unevaluated experiments.
-`eval:smoke` and `eval` run real Copilot sessions. Authenticate using the
-[Vally runtime setup](https://microsoft.github.io/vally/get-started/runtime-setup/).
-The baseline model is `gpt-5.4-mini`; override it with `--model MODEL_ID`.
+Before `eval:smoke` or `eval`, review the
+[execution and scoped authentication setup](checks-and-evals.md#execution-and-authentication).
+Those commands run real Copilot sessions on the host, not in a sandbox.
+Each eval declares its model; override it with `--model MODEL_ID`.
 Local runs use one worker, per-case timeouts, and one bounded retry for a
 timeout or rate limit. A valid failed verdict isn't retried to get a pass.
 
@@ -42,16 +81,15 @@ That prints each spec and case it would run and the exact commands. Then run
 and report on the same selection. Repeat `--plugin` for several plugins:
 
 ```sh
-node scripts/evals.mjs eval --plugin <name> --plugin <other-name>
-npm run eval:report -- --plugin <name> --plugin <other-name>
+node .github/scripts/evals.mjs eval --plugin <name> --plugin <other-name>
+npm run eval:report:selection -- --plugin <name> --plugin <other-name>
 ```
 
 `--eval-spec <path>` still selects one spec, and you can repeat it.
-`--plugin` and `--eval-spec` work with `npm run eval` and `npm run eval:smoke`
-too, which narrows those suites to the plugins you name:
+`--plugin` belongs to the retained launcher, not native Vally. To narrow a suite:
 
 ```sh
-npm run eval:smoke -- --plugin <name>
+node .github/scripts/evals.mjs eval --suite smoke --plugin <name>
 ```
 
 Vally doesn't accept a suite together with specific specs, so the launcher
@@ -70,7 +108,7 @@ npm run eval:list -- --tag control=negative
 The list, the run, and the report all apply the same rules, and `--list`
 prints the matching report command. With no `--suite`, `--plugin`,
 `--eval-spec`, or `--tag`, the launcher runs the full suite.
-`npm run eval:report -- --help` lists the report's options.
+`npm run eval:report:selection -- --help` lists the report's options.
 
 ## Cost
 
@@ -86,7 +124,8 @@ and check your billing dashboard after a run to learn what your suite costs.
 
 ## Write an eval
 
-1. Create `evals/<plugin>/eval.yaml` with realistic tasks, expected outcomes,
+1. Create `evals/<plugin>/skills/<skill>/eval.yaml` (or `agents/<agent>/eval.yaml`)
+   with realistic tasks, expected outcomes,
    and at least one negative or non-trigger case. `eval.yaml` is
    [Vally's default file name](https://microsoft.github.io/vally/reference/eval-spec/).
    `<name>.eval.yaml` works too, so one folder can hold several specs;
@@ -117,10 +156,12 @@ and check your billing dashboard after a run to learn what your suite costs.
      `program` grader, and a `tags.boundary` saying what the eval does and
      doesn't prove. See [Extensions](#extensions).
 4. Tag every case with its assets and `tags.control: positive` or `negative`.
+   Boundary cases use `control: positive` and describe the boundary separately
+   in `tags.boundary`, with the same invocation and outcome checks.
    Put a representative positive case in `tags.suite: smoke`. Prefix stimulus
    names with the plugin or skill name; names must be unique across all specs.
-5. Run `npm run verify`, then run the eval, inspect its trajectory, and confirm
-   that a wrong outcome would fail the graders.
+5. Run `npm run verify`. If a paid run is approved, inspect its trajectory and
+   confirm that a wrong outcome would fail the graders.
 
 [Write an eval, step by step](eval-authoring.md) has complete skill evals with
 each part explained. `npm run new-plugin` writes one for each new plugin.
@@ -229,14 +270,14 @@ because CI runs it by default.
 
 ## How the harness loads assets
 
-The [launcher](../scripts/evals.mjs) runs Vally's `copilot-sdk` executor with the
-pinned full Copilot CLI. The SDK's bundled standalone runtime can discover a
-custom agent but won't run it, so the launcher sets `COPILOT_CLI_PATH` to a
-small [runtime bridge](../scripts/eval-runtime.js) that starts the pinned
+The primary npm command uses native Vally. CI selects the pinned full Copilot
+CLI with `COPILOT_CLI_PATH`. The retained
+[launcher](../.github/scripts/evals.mjs) sets `COPILOT_CLI_PATH` to a
+small [runtime bridge](../.github/scripts/eval-runtime.js) that starts the pinned
 `@github/copilot` runtime with auto-update turned off. The bridge mounts each
 directory listed in an eval's `STARTER_PLUGIN_DIRS` with `--plugin-dir`, so hook
 cases load the real plugin without a global install or a folder-trust prompt.
-`node scripts/eval-runtime.js --version` prints the pinned package version and
+`node .github/scripts/eval-runtime.js --version` prints the pinned package version and
 the version that actually runs.
 
 MCP processes don't necessarily start in this checkout, so the launcher reads
@@ -245,8 +286,12 @@ absolute path. Other params pass through unchanged.
 
 ## Results
 
-Each local run writes JSONL results, a Markdown report, JUnit, and session
-evidence under a timestamped `vally-results/` directory. Report on it with the
+Native runs and the retained launcher follow `paths.results`, now
+`evals/results/`. Older `vally-results/` files remain readable via an explicit
+path. Use `npm run eval:report` for scores, tokens, and duration, or
+`npm run eval:compare` for a baseline comparison.
+
+The compatibility report, `npm run eval:report:selection`, checks the
 same selection you ran: `--suite smoke` after `npm run eval:smoke`,
 `--suite full` after `npm run eval`, or `--eval-spec <path>` after one spec.
 `--run-dir PATH` selects a saved run. An incomplete run, unexpected skip,

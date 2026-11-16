@@ -7,10 +7,12 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "allowJs": true,
+    "jsx": "react-jsx",
+    "resolveJsonModule": true,
     "noUncheckedIndexedAccess": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["plugins/**/*.ts", "plugins/**/*.mts"]
+  "include": ["plugins/**/*.ts", "plugins/**/*.mts", "canvases/**/*.ts", "canvases/**/*.tsx", "playwright.config.ts"]
 }

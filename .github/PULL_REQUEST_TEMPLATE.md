@@ -6,8 +6,8 @@
 
 <!-- Check each item, or mark it N/A with a short reason, for example "N/A: no generated sources changed". -->
 
-- [ ] For each changed plugin, bumped `version` in `plugin.json` and `marketplace.json`, and added a `CHANGELOG.md` entry. Any change under `plugins/<name>/` needs one.
-- [ ] Kept the catalog description identical to the manifest, and the plugin enabled in `.github/copilot/settings.json`.
+- [ ] For changes since a known released base, bumped `version` in `plugin.json` and `marketplace.json` and added a `CHANGELOG.md` entry. Kept unreleased first versions and avoided duplicate bumps.
+- [ ] Kept the catalog description identical to the manifest. The repository overlay enables local plugins for development, never remote entries.
 - [ ] Updated `.vally.yaml` `paths.skills` and `params` for added, renamed, or removed plugins.
 - [ ] Documented what was checked, known failures, and any untested behavior. Evals are optional.
 - [ ] Updated the plugin's README and any other docs that describe what changed.
@@ -32,4 +32,4 @@
 
 ## Paid evals
 
-<!-- List the evals you ran, for example `node scripts/evals.mjs eval --plugin <name>`, and their results, or say "None". -->
+<!-- List the evals you ran, for example `node .github/scripts/evals.mjs eval --plugin <name>`, and their results, or say "None". -->

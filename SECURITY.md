@@ -46,7 +46,7 @@ data goes, and a review checklist for new plugins.
 
 ## Maintaining this marketplace
 
-- Review changes to `.github/workflows/`, `scripts/`, `evals/`, `plugins/`,
+- Review changes to `.github/workflows/`, `.github/scripts/`, `evals/`, `plugins/`,
   `marketplace.json`, and `.github/copilot/settings.json` carefully. Same-repository
   pull requests can run changed code in the eval workflow with its token.
 - Require review from code owners through branch protection or a ruleset.

@@ -13,21 +13,28 @@ place; don't duplicate them here.
 - Behavioral evals are optional here. `npm run verify` deliberately omits
   eval-coverage and eval-lint gates. Do not add a publishing requirement for
   evals or imply that passing static checks makes an experiment safe.
-- Scaffold a plugin with `npm run new-plugin -- <name>` (with `--with agent`,
+- Adopt template infrastructure without restoring removed template plugins or
+  their evals. Keep this marketplace's own plugins and behavior intact.
+- The retained compatibility tooling can scaffold a plugin with `npm run new-plugin -- <name>` (with `--with agent`,
   `mcp`, `hook`, or `extension`, and `--no-skill` when it has no skill), remove
   one with `npm run remove-plugin -- <name>` (`remove-example` for the shipped
   examples), and rename the marketplace with `npm run rename-marketplace`,
-  rather than editing the catalog, overlay, and `.vally.yaml` by hand. Name a
+  or edit the files described in CONTRIBUTING.md. Name a
   plugin's support files after it (`evals/graders/<name>.mjs`,
   `test/<name>-*.test.mjs`) so removal finds them.
 - Group plugins by workflow, not by asset type. Keep every in-repo example
   self-contained and independently installable, without external services.
   Remote catalog references are separate from the local examples.
+- Enable local plugins in the repository overlay for development. Never enable
+  remote entries there; they stay opt-in.
+- Version changes since a known released base, not every edit. An unreleased
+  first version keeps its initial version and changelog heading. Never bump
+  twice, lower versions, or infer release status from a PR base.
 - Keep `.vally.yaml` in step with the plugins: `paths.skills` lists every
   plugin's `skills` directory, and path `params` point at files that exist.
   Live-repository tests check invariants, not a fixed plugin list; put
   example-specific assertions in tests that skip when the example is gone, and
-  list every file an example owns in [scripts/examples.mjs](scripts/examples.mjs).
+  list every file an example owns in [.github/scripts/examples.mjs](.github/scripts/examples.mjs).
 - Use the Agent Plugins 1.0 layout: root `plugin.json`, `skills/`, and `mcp.json`.
   Copilot agents (`agents/`), slash commands (`commands/`), rules (`rules/`),
   hooks (`hooks/hooks.json`), LSP servers (`lsp.json`), and SDK extensions
@@ -44,9 +51,11 @@ place; don't duplicate them here.
   `AGENTS.md`) and prompt files apply only to the repository they're in. To
   share guidance through the marketplace, package it as a skill or agent, as
   [docs/customization-types.md](docs/customization-types.md) explains.
-- Don't add a UI framework or database. Never vendor the runtime SDK. The only
-  build step regenerates committed artifacts (the MCP server bundle, the
-  authoring grader, and their notices). Run `npm run build` after changing their
+- Don't add a database or another UI framework. Session Todos uses the published
+  canvas-kit and React packages, bundled with the existing esbuild pipeline;
+  never copy their source into the repository or vendor the runtime SDK.
+  The build steps regenerate committed artifacts (MCP and canvas bundles,
+  the authoring grader, and their notices). Run `npm run build` after changing their
   sources and commit the generated files with the change. Never make an
   installed plugin depend on this checkout's `node_modules`.
 - Skill and agent descriptions explain when to invoke them. Put detailed
@@ -61,6 +70,9 @@ place; don't duplicate them here.
 - Preserve coverage when replacing an example; don't delete tests just to
   make validation pass.
 - Keep any optional evals outside plugins, grouped by workflow under `evals/`.
+  New template evals mirror `skills/` and `agents/`, with their graders beside
+  the eval and shared helpers in `evals/_shared/`. Retained canvas transports
+  and compatibility graders still use `evals/support/` and `evals/graders/`.
   If a changed component has evals, update them or document that they are stale.
   Don't replace real skill, tool, or agent invocation
   assertions with output keywords. Keep eval-only transports and development
@@ -75,13 +87,16 @@ place; don't duplicate them here.
 - Valid behavioral failures may be report-only locally; tooling, configuration,
   and grader errors must fail. Never hide failures with blanket catches or
   `continue-on-error`.
-- `npm run eval:smoke`, `npm run eval`, and the evals workflow spend AI
-  credits. Don't run them unless the user asks, and don't turn on
-  `ENABLE_EVALS` for anyone. Static checks don't establish behavioral quality.
+- `npm run eval:smoke`, `npm run eval`, `npm run eval:models`, and the evals workflow spend AI
+  credits. Don't run them unless the user asks. The evals workflow is
+  manual-only; never add paid pull-request triggers. Static checks don't
+  establish behavioral quality.
 - When upgrading Vally or Copilot, update the pins in `package.json` and the
   lockfile together, and verify real custom-agent delegation and MCP behavior,
-  not only schema validity. CI runs evals through the same launcher as local
-  runs. When you touch the workflows, refresh every action's commit SHA (with
+  not only schema validity. Without paid-run approval, report live delegation
+  as unverified. CI and the primary npm command use native Vally; the legacy
+  launcher remains for plugin selection and absolute path parameters.
+  When you touch the workflows, refresh every action's commit SHA (with
   its version comment), and keep the evals workflow on a Node major that
   `validate.yml` tests.
 - Keep remote plugins opt-in. The repository settings overlay must never enable

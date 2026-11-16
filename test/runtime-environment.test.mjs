@@ -6,10 +6,10 @@ import { tmpdir } from 'node:os';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { existsSync, readFileSync } from 'node:fs';
-import { root as projectRoot, runtimeBridge, runtimeEnvironment, evalParams, vallyCliPath } from '../scripts/evals.mjs';
-import { parseYaml } from '../scripts/catalog.mjs';
+import { root as projectRoot, runtimeBridge, runtimeEnvironment, evalParams, vallyCliPath } from '../.github/scripts/evals.mjs';
+import { parseYaml } from '../.github/scripts/catalog.mjs';
 import { spawnSync } from 'node:child_process';
-import { packageVersion, runtimeProcessEnvironment } from '../scripts/eval-runtime.js';
+import { packageVersion, runtimeProcessEnvironment } from '../.github/scripts/eval-runtime.js';
 
 test('direct Node execution gets the pinned validator and a normalized executable path', () => {
   const env = runtimeEnvironment({ Path: '/existing/bin', KEEP: 'yes' });

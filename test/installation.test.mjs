@@ -4,8 +4,8 @@ import { mkdtemp, mkdir, cp, writeFile, rm } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { contained, readCatalog } from '../scripts/catalog.mjs';
-import { root as projectRoot } from '../scripts/validate.mjs';
+import { contained, readCatalog } from '../.github/scripts/catalog.mjs';
+import { root as projectRoot } from '../.github/scripts/validate.mjs';
 
 test('local workflows install independently without fetching remote plugins', { timeout: 300000 }, async () => {
   const { catalog, localPlugins } = await readCatalog(projectRoot);

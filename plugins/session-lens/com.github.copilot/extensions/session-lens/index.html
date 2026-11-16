@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Session Lens</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/client.js" type="module"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 6 6M7 10h6M10 7v6"/></svg><h1>Session Lens</h1></div>
+    <button id="activity-home" class="link" hidden>Activity</button>
+    <details id="session-picker" class="session-picker" hidden>
+      <summary aria-label="Choose session"><span id="selected-session">Choose session</span></summary>
+      <div class="session-menu">
+        <div class="aside-heading"><h2>Sessions</h2><span id="session-count" class="muted"></span></div>
+        <label class="sr-only" for="session-search">Find session by ID</label><input id="session-search" type="search" placeholder="Find session ID">
+        <div id="sessions"></div>
+      </div>
+    </details>
+    <div class="toolbar">
+      <button id="refresh" type="button">Refresh</button>
+      <details class="view-options">
+        <summary>View options</summary>
+        <div class="option-body">
+          <label class="check"><input id="history-limit" type="checkbox" checked>Limit history to 30 days</label>
+          <label class="check"><input id="auto" type="checkbox">Auto refresh</label>
+          <button id="quick" type="button">Quick view</button>
+          <label for="theme">Theme</label><select id="theme"><option value="auto">System</option><option value="dark">Dark</option><option value="light">Light</option></select>
+        </div>
+      </details>
+    </div>
+  </header>
+  <div id="error" role="alert" hidden></div>
+  <div class="layout">
+    <main>
+      <nav id="session-breadcrumb" aria-label="Activity to session" hidden>
+        <button id="back-to-activity" class="link">Activity</button>
+        <span aria-hidden="true">/</span><span>Session details</span>
+        <span id="session-scope" class="muted"></span>
+      </nav>
+      <section id="quick-panel" hidden aria-label="Quick context view"></section>
+      <nav aria-label="Inspection views" id="tabs" hidden>
+        <button data-tab="session" aria-current="page">Context</button>
+        <button data-tab="history">Usage log</button>
+        <button data-tab="inspector">Event log</button>
+        <button data-tab="work">Work</button>
+        <button data-tab="agents">Agents</button>
+      </nav>
+      <div id="view"></div>
+    </main>
+  </div>
+  <footer><span class="local-status">Local only</span><span id="status" role="status" aria-live="polite">Reading sessions...</span></footer>
+  <dialog id="detail">
+    <div class="dialog-heading"><h2 id="detail-title">Event evidence</h2><button id="close-detail" aria-label="Close event evidence">Close</button></div>
+    <p id="detail-meta" class="muted"></p>
+    <label class="check"><input id="reveal" type="checkbox">Reveal event content locally</label>
+    <p class="muted">May include private prompts, code, paths, or credentials. Nothing here is sent to a model.</p>
+    <pre id="detail-content">Content hidden. Enable the local preview to inspect this record.</pre>
+  </dialog>
+</body>
+</html>

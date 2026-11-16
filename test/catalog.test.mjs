@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { readCatalog, partitionCatalog, remoteWarnings, validateRemoteSource } from "../scripts/catalog.mjs";
-import { discoverAssets, checkCoverage, root } from "../scripts/validate-evals.mjs";
+import { readCatalog, partitionCatalog, remoteWarnings, validateRemoteSource } from "../.github/scripts/catalog.mjs";
+import { discoverAssets, checkCoverage, root } from "../.github/scripts/validate-evals.mjs";
 
 test("the catalog separates local plugins from pinned, opt-in remote references", async () => {
   const { catalog, localPlugins, remotePlugins } = await readCatalog(root);

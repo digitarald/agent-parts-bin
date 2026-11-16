@@ -142,8 +142,8 @@ Use synthetic fixtures. Keep answer keys and grader programs in
 ```sh
 npm run verify                                   # free: coverage, strict lint, tests
 npm run eval:list -- --plugin example-plugin     # free: what a run would select
-node scripts/evals.mjs eval --plugin example-plugin   # costs AI credits
-npm run eval:report -- --plugin example-plugin
+node .github/scripts/evals.mjs eval --plugin example-plugin   # costs AI credits
+npm run eval:report:selection -- --plugin example-plugin
 ```
 
 `npm run verify` and `npm run eval:list` don't call a model. The eval command

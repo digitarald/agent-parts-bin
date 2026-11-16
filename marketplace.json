@@ -5,10 +5,22 @@
   },
   "plugins": [
     {
+      "name": "session-todos",
+      "source": "./plugins/session-todos",
+      "version": "0.1.0",
+      "description": "Follow the current session todos, dependencies, and recent changes without model calls."
+    },
+    {
       "name": "decide",
       "source": "./plugins/decide",
       "version": "0.1.1",
       "description": "Typed decisions for bounded classification, routing, and scoring through a user-configured Microsoft Foundry deployment."
+    },
+    {
+      "name": "session-lens",
+      "source": "./plugins/session-lens",
+      "version": "0.3.0",
+      "description": "Explore Copilot activity, model roles, skill invocations, and MCP usage across dates and sessions."
     },
     {
       "name": "commit-attribution",

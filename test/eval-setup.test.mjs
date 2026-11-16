@@ -5,11 +5,11 @@ import { tmpdir } from "node:os";
 import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { parse } from "yaml";
-import { assetsWithEvals, checkCoverage, discoverAssets, readEvals, root, suiteTags } from "../scripts/validate-evals.mjs";
-import { evalFilenameMatcher, parseTagSelectors, readCatalog, readVallyConfig } from "../scripts/catalog.mjs";
-import { defaultRuntime, pluginDirectories, runtimeArguments, runtimeEntry } from "../scripts/eval-runtime.js";
-import { evalParams, isPathParam, pathParams, reportArguments, runtimeBridge, runtimeEnvironment, vallyArguments, vallyCliPath, vallySelection } from "../scripts/evals.mjs";
-import { expectedCases, render, summarize } from "../scripts/eval-report.mjs";
+import { assetsWithEvals, checkCoverage, discoverAssets, readEvals, root, suiteTags } from "../.github/scripts/validate-evals.mjs";
+import { evalFilenameMatcher, parseTagSelectors, readCatalog, readVallyConfig } from "../.github/scripts/catalog.mjs";
+import { defaultRuntime, pluginDirectories, runtimeArguments, runtimeEntry } from "../.github/scripts/eval-runtime.js";
+import { evalParams, isPathParam, pathParams, reportArguments, runtimeBridge, runtimeEnvironment, vallyArguments, vallyCliPath, vallySelection } from "../.github/scripts/evals.mjs";
+import { expectedCases, render, summarize } from "../.github/scripts/legacy-eval-report.mjs";
 
 test("optional evals cover the assets they claim to evaluate", async () => {
   const config = await readVallyConfig(root);
@@ -55,10 +55,10 @@ test("the bug-report example must load its actual skill", { skip: !existsSync(re
 test("eval-only dependencies stay out of plugins and remote installation stays opt-in", async () => {
   const manifest = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
   for (const [name, version] of Object.entries({
-    "@github/copilot": "1.0.98", "@microsoft/vally-cli": "0.19.0", "@modelcontextprotocol/sdk": "1.32.1",
+    "@github/copilot": "1.0.98", "@microsoft/vally-cli": "0.21.0", "@modelcontextprotocol/sdk": "1.32.1",
   })) assert.equal(manifest.devDependencies[name], version);
   for (const version of Object.values(manifest.devDependencies)) assert.match(version, /^\d+\.\d+\.\d+$/);
-  assert.equal(manifest.engines.node, ">=22.14.0");
+  assert.equal(manifest.engines.node, ">=22.15.0");
   const settings = JSON.parse(await readFile(resolve(root, ".github/copilot/settings.json"), "utf8"));
   const { catalog, localPlugins, remotePlugins } = await readCatalog(root);
   assert.deepEqual(Object.keys(settings.enabledPlugins).sort(), localPlugins.map((entry) => `${entry.name}@${catalog.name}`).sort());
@@ -95,7 +95,7 @@ test("the launcher passes absolute values for every .vally.yaml path param and k
   }
   assert.ok(!isPathParam("gpt-5.4-mini") && !isPathParam(["a/b"]) && !isPathParam("https://example.com/a") && isPathParam("evals/x.mjs"));
   const run = vallyArguments("eval", ["--suite", "smoke"]);
-  for (const flag of [["--workers", "1"], ["--max-retries", "1"], ["--output-dir", "vally-results"]]) {
+  for (const flag of [["--workers", "1"], ["--max-retries", "1"], ["--output-dir", config.paths.results]]) {
     assert.equal(run[run.indexOf(flag[0]) + 1], flag[1]);
   }
   assert.ok(run.includes("--junit"));
@@ -131,6 +131,9 @@ test("eval discovery follows .vally.yaml evalFilenames, including a custom *.eva
     assert.deepEqual(await names({}), ["a"]);
     assert.deepEqual(await readEvals(directory, { paths: { evalFilenames: ["missing.yaml"] } }), []);
     assert.throws(() => evalFilenameMatcher(["evals/**/eval.yaml"]), /plain file names/);
+    await mkdir(join(directory, "evals/results/saved-run"), { recursive: true });
+    await writeFile(join(directory, "evals/results/saved-run/eval.yaml"), "not: a live eval\n");
+    assert.deepEqual(await names({ paths: { results: "evals/results", evalFilenames: ["eval.yaml"] } }), ["a"]);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -180,7 +183,7 @@ test("runtime and grader infrastructure errors never become report-only scores",
 });
 
 test("the source validator accepts CRLF changelog headings and excludes generated eval reports", async () => {
-  const script = await readFile(resolve(root, "scripts/validate.mjs"), "utf8");
+  const script = await readFile(resolve(root, ".github/scripts/validate.mjs"), "utf8");
   assert.ok(script.includes('replaceAll("\\r\\n", "\\n")'));
   assert.ok(script.includes('"vally-results"'));
 });
@@ -190,7 +193,7 @@ test("the source validator accepts CRLF changelog headings and excludes generate
 // the customizations docs/ci.md describes keep npm run verify passing: trimming
 // the validate matrix, removing the evals environment, uploading transcripts
 // for a debug run, or deleting evals.yml.
-test("deterministic CI stays model-free, and opt-in behavioral CI runs the pinned Vally launcher on trusted code", async () => {
+test("deterministic CI stays model-free, and behavioral CI is manual-only with a pinned runtime", async () => {
   const automatic = parse(await readFile(resolve(root, ".github/workflows/validate.yml"), "utf8"));
   const evalsPath = resolve(root, ".github/workflows/evals.yml");
   const evals = existsSync(evalsPath) ? parse(await readFile(evalsPath, "utf8")) : undefined;
@@ -224,19 +227,17 @@ test("deterministic CI stays model-free, and opt-in behavioral CI runs the pinne
   if (!evals) return;
 
   assert.ok(!("pull_request_target" in evals.on));
+  assert.deepEqual(Object.keys(evals.on), ["workflow_dispatch"]);
   assert.deepEqual(evals.permissions, { contents: "read" });
-  const runners = Object.entries(evals.jobs).filter(([, job]) => job.steps.some((step) => /scripts\/evals\.mjs eval\b/.test(step.run ?? "")));
+  const runners = Object.entries(evals.jobs).filter(([, job]) => job.steps.some((step) => /npm run eval --/.test(step.run ?? "")));
   assert.ok(runners.length, "evals.yml should have a job that runs evals.");
   for (const [name, job] of runners) {
     // An environment is optional (docs/ci.md explains when to drop it); if
     // there is one, it's the evals environment.
     if (job.environment !== undefined) assert.equal(job.environment?.name ?? job.environment, "evals", name);
     assert.equal(String(job.env?.VALLY_TELEMETRY_OPTOUT), "1", name);
-    // Opt-in, never on forks or drafts.
-    assert.match(job.if, /github\.event_name == 'workflow_dispatch' \|\|/, name);
-    assert.match(job.if, /vars\.ENABLE_EVALS == 'true' &&/, name);
-    assert.match(job.if, /head\.repo\.full_name == github\.repository/, name);
-    assert.match(job.if, /!github\.event\.pull_request\.draft/, name);
+    assert.equal(job.env.COPILOT_CLI_PATH, "${{ github.workspace }}/node_modules/@github/copilot/npm-loader.js");
+    assert.equal(job.env.COPILOT_AUTO_UPDATE, "false");
     // A paid run is never cancelled halfway by a newer push.
     assert.equal(job.concurrency?.["cancel-in-progress"], false, name);
     assert.ok(!Object.values(job.permissions ?? {}).includes("write-all") && job.permissions?.contents === "read", name);
@@ -246,9 +247,9 @@ test("deterministic CI stays model-free, and opt-in behavioral CI runs the pinne
     if (preflight) assert.ok(job.steps.indexOf(job.steps.find((step) => step.run?.startsWith("npm ci"))) < job.steps.indexOf(preflight), name);
   }
   for (const [name, job] of runners) {
-    const runStep = job.steps.find((step) => /scripts\/evals\.mjs eval\b/.test(step.run ?? ""));
+    const runStep = job.steps.find((step) => /npm run eval --/.test(step.run ?? ""));
     assert.ok(runStep.run.includes("--require-pass"), name);
-    const report = job.steps.find((step) => /eval-report\.mjs/.test(step.run ?? ""));
+    const report = job.steps.find((step) => /npm run eval:report/.test(step.run ?? ""));
     if (report) assert.ok(job.steps.indexOf(runStep) < job.steps.indexOf(report), name);
     const upload = job.steps.find((step) => step.uses?.startsWith("actions/upload-artifact@"));
     if (upload) assert.match(upload.if, /vars\.EVALS_UPLOAD_RESULTS == 'true'/, "Transcripts upload only when someone opts in.");
@@ -341,13 +342,11 @@ test("the launcher turns a suite with --plugin, --eval-spec, or --tag into a sel
     ["--suite", "smoke", "--plugin", "a", "--eval-spec", "evals/a/eval.yaml", "--tag", "x=y"]);
 });
 
-// The template locks every package to registry.npmjs.org. A team that installs
-// through its own mirror can change the hosts, but keeps HTTPS and sha512.
-test("every locked package resolves over HTTPS with a sha512 integrity hash", async () => {
+test("locked packages keep sha512 integrity independently of the configured registry", async () => {
   const lock = JSON.parse(await readFile(resolve(root, "package-lock.json"), "utf8"));
   for (const [path, entry] of Object.entries(lock.packages)) {
     if (!path || entry.link) continue;
-    assert.match(entry.resolved ?? "", /^https:\/\//, `${path}: resolve over HTTPS.`);
+    if (entry.resolved !== undefined) assert.match(entry.resolved, /^https:\/\//, `${path}: resolve over HTTPS.`);
     assert.match(entry.integrity ?? "", /^sha512-/, `${path}: use a sha512 integrity hash, not sha1.`);
   }
 });
