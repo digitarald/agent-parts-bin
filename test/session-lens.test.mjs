@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createCanvasFixture } from "../evals/support/canvas-host.mjs";
+import { getSessionLogs } from "../evals/support/canvas-sdk.mjs";
 
 const extension = new URL("../plugins/session-lens/com.github.copilot/extensions/session-lens/extension.mjs", import.meta.url);
 const present = existsSync(extension);
@@ -148,6 +149,7 @@ test("canvas opens, acts, reopens, enforces local HTTP boundaries, and closes it
   });
   const host = await createCanvasFixture({ extension: fileURLToPath(extension) });
   t.after(() => host.close());
+  assert.deepEqual(getSessionLogs(), [], "Registering the extension must not write session log events.");
   const id = "parts-bin-session-lens";
   await host.callTool("open_canvas", { canvasId: id, instanceId: "main" });
   const url = host.panelUrl("main");

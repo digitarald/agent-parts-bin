@@ -1,5 +1,6 @@
 // Evaluation-only transport seam; the extension, board, and HTTP server stay real.
 let registration;
+const sessionLogs = [];
 
 export class CanvasError extends Error {
   constructor(code, message) {
@@ -15,8 +16,15 @@ export async function joinSession({ canvases }) {
   if (registration) throw new Error("The headless fixture supports one SDK session per process.");
   registration = canvases;
   return {
-    log: async (message) => process.stderr.write(`[canvas headless-sdk-contract] ${String(message)}\n`),
+    log: async (message) => {
+      sessionLogs.push(message);
+      return process.stderr.write(`[canvas headless-sdk-contract] ${String(message)}\n`);
+    },
   };
+}
+
+export function getSessionLogs() {
+  return sessionLogs;
 }
 
 export function getRegisteredCanvases() {

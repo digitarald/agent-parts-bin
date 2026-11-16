@@ -2,6 +2,8 @@
 
 ## 0.3.0
 
+- Removed the startup readiness log, which caused the host to persist a
+  `session.info` event before any canvas opened.
 - Made date-range Activity the landing view, with adaptive hourly through yearly
   charts, DST-aware accounting, and a default-on 30-day history limit.
 - Added progressive scanning, pause/resume, and refresh that preserves the

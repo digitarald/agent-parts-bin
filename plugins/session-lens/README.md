@@ -3,6 +3,9 @@
 An experimental, read-only canvas for local Copilot activity. Browsing makes
 no model calls, uses no external services, and uploads nothing.
 
+Registration is silent and reads no session sources until a canvas opens.
+Read and server failures still emit session diagnostic codes.
+
 Ask **"Show my Copilot activity today."**
 
 ## Explore your activity
@@ -112,7 +115,7 @@ viewing the panel can see revealed content.
 | Question | Answer |
 |---|---|
 | What runs, and when | SDK extension registers on load; a per-panel HTTP server starts on open. |
-| Files read or written | Reads regular log files within the selected root; rejects traversal and symlink escapes. No log or preference writes. |
+| Files read or written | Reads regular log files within the selected root; rejects traversal and symlink escapes. No direct log or preference writes; errors emit session diagnostics. |
 | Network destinations | `127.0.0.1` on an ephemeral port. No outbound requests. |
 | Credentials or tokens | No host credentials. Per-panel HttpOnly, SameSite cookies, Host/Origin checks, and CSP gate local access. |
 | Data retained | Bounded in-memory snapshots until eviction or provider shutdown. |
@@ -139,6 +142,8 @@ or required.
 
 ## Host checks
 
+- Reload the installed extension without opening a canvas. Confirm no startup
+  readiness message or `session.info` event is added.
 - Reload the installed extension and open `{}`. Check date ranges, the history
   limit, progressive scanning, and refresh without blanking results.
 - Filter by a skill, MCP tool, or model role; enter a session and return.

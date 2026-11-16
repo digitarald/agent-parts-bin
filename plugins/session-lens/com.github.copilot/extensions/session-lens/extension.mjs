@@ -94,4 +94,3 @@ const canvas = createCanvas({
 });
 
 session = await joinSession({ canvases: [canvas] });
-await session.log("session-lens: ready; sources are read only when a canvas opens.");
