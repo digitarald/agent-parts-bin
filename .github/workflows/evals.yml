@@ -27,6 +27,7 @@ jobs:
       cancel-in-progress: false
     env:
       SUITE: ${{ inputs.suite || 'smoke' }}
+      EVAL_MODEL: gpt-6.1-terra
       VALLY_TELEMETRY_OPTOUT: '1'
       COPILOT_CLI_PATH: ${{ github.workspace }}/node_modules/@github/copilot/npm-loader.js
       COPILOT_AUTO_UPDATE: 'false'
@@ -44,7 +45,7 @@ jobs:
       # --require-pass fails the job on a failed verdict.
       # The launcher uses one worker and one bounded retry.
       - name: Run evals
-        run: npm run eval -- --suite "$SUITE" --require-pass
+        run: npm run eval -- --suite "$SUITE" --model "$EVAL_MODEL" --require-pass
         env:
           GITHUB_TOKEN: ${{ github.token }}
       # Prints the report and adds it to the job summary. It fails on an

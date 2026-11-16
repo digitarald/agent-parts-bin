@@ -37,8 +37,8 @@ omit both directories; schema validation also skips when no local manifests
 remain. Template-plugin tests skip when their plugins are absent; they are
 not evidence about this marketplace's plugins.
 None of these checks calls a model. [Validate](../.github/workflows/validate.yml)
-runs `verify` on pull requests, pushes to `main`, and manual dispatch, on Linux,
-Windows, and macOS. It:
+runs `verify` on pull requests, pushes to `main`, and manual dispatch, on Linux
+with Node.js 24. It:
 
 - Runs deterministic tests for the infrastructure and retained plugins.
 - Validates each `plugins/*/plugin.json` against the

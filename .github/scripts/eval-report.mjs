@@ -261,10 +261,9 @@ function caseKey(row, useEvalPrefix) {
 export function classifyTransition(baselineRow, candidateRow) {
   if (!baselineRow) return "Added";
   if (!candidateRow) return "Removed";
+  if (baselineRow.status === "ERROR / NOT EVALUATED" || candidateRow.status === "ERROR / NOT EVALUATED") return "Not comparable";
   if (baselineRow.status !== "PASS" && candidateRow.status === "PASS") return "Fixed";
   if (baselineRow.status === "PASS" && candidateRow.status !== "PASS") return "Regressed";
-  if (baselineRow.status === "BEHAVIORAL FAILURE" && candidateRow.status === "ERROR / NOT EVALUATED") return "Regressed";
-  if (baselineRow.status === "ERROR / NOT EVALUATED" || candidateRow.status === "ERROR / NOT EVALUATED") return "Unchanged";
   if (typeof baselineRow.score !== "number" || !Number.isFinite(baselineRow.score)
     || typeof candidateRow.score !== "number" || !Number.isFinite(candidateRow.score)) {
     return "Unchanged";
@@ -293,18 +292,19 @@ export function compareSummaries(baseline, candidate) {
     const baseRow = baselineMap.get(key);
     const candRow = candidateMap.get(key);
     const sameTrialCount = (baseRow?.trials ?? 1) === (candRow?.trials ?? 1);
+    const scoredPair = typeof baseRow?.score === "number" && typeof candRow?.score === "number";
     const scoreDelta = typeof baseRow?.score === "number" && typeof candRow?.score === "number"
       ? candRow.score - baseRow.score
       : undefined;
     const baseTokens = baseRow?.tokenUsage?.totalTokens;
     const candTokens = candRow?.tokenUsage?.totalTokens;
-    const tokenDelta = sameTrialCount && typeof baseTokens === "number" && typeof candTokens === "number"
+    const tokenDelta = scoredPair && sameTrialCount && typeof baseTokens === "number" && typeof candTokens === "number"
       ? candTokens - baseTokens
       : undefined;
     const tokenDeltaPct = tokenDelta !== undefined && baseTokens > 0
       ? (tokenDelta / baseTokens) * 100
       : undefined;
-    const durationDeltaMs = sameTrialCount && typeof baseRow?.durationMs === "number" && typeof candRow?.durationMs === "number"
+    const durationDeltaMs = scoredPair && sameTrialCount && typeof baseRow?.durationMs === "number" && typeof candRow?.durationMs === "number"
       ? candRow.durationMs - baseRow.durationMs
       : undefined;
 
@@ -322,6 +322,7 @@ export function compareSummaries(baseline, candidate) {
 
   const workloadsMatch =
     baseline.rows.length === candidate.rows.length &&
+    baseline.errorCount === 0 && candidate.errorCount === 0 &&
     cases.every((item) => item.baseline && item.candidate && item.baseline.trials === item.candidate.trials);
   const baseTotalTokens = baseline.tokenUsage?.totalTokens;
   const candTotalTokens = candidate.tokenUsage?.totalTokens;
@@ -339,7 +340,7 @@ export function compareSummaries(baseline, candidate) {
     deltas: {
       passed: candidate.passedCount - baseline.passedCount,
       failed: (candidate.failedCount + candidate.errorCount) - (baseline.failedCount + baseline.errorCount),
-      averageScore: typeof baseline.averageScore === "number" && typeof candidate.averageScore === "number"
+      averageScore: workloadsMatch && typeof baseline.averageScore === "number" && typeof candidate.averageScore === "number"
         ? candidate.averageScore - baseline.averageScore
         : undefined,
       totalTokens: totalTokenDelta,

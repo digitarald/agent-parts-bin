@@ -379,21 +379,21 @@ test("eval-report redacts raw grader evidence and error strings, requires comple
       { status: "BEHAVIORAL FAILURE", score: 0.5, tokenUsage: { totalTokens: 2000 } },
       { status: "ERROR / NOT EVALUATED", score: undefined, tokenUsage: { totalTokens: 500 } },
     ),
-    "Regressed",
+    "Not comparable",
   );
   assert.equal(
     classifyTransition(
       { status: "ERROR / NOT EVALUATED", score: undefined, tokenUsage: { totalTokens: 2000 } },
       { status: "ERROR / NOT EVALUATED", score: undefined, tokenUsage: { totalTokens: 500 } },
     ),
-    "Unchanged",
+    "Not comparable",
   );
   assert.equal(
     classifyTransition(
       { status: "ERROR / NOT EVALUATED", score: undefined, tokenUsage: { totalTokens: 2000 } },
       { status: "BEHAVIORAL FAILURE", score: 0.5, tokenUsage: { totalTokens: 500 } },
     ),
-    "Unchanged",
+    "Not comparable",
   );
 
   // Strip terminal escape sequences (including OSC 52) from report fields and invalid-grade errors

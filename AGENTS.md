@@ -88,9 +88,8 @@ place; don't duplicate them here.
   and grader errors must fail. Never hide failures with blanket catches or
   `continue-on-error`.
 - `npm run eval:smoke`, `npm run eval`, `npm run eval:models`, and the evals workflow spend AI
-  credits. Don't run them unless the user asks. The evals workflow is
-  manual-only; never add paid pull-request triggers. Static checks don't
-  establish behavioral quality.
+  credits. Don't run them unless the user asks. Static checks don't establish
+  behavioral quality.
 - When upgrading Vally or Copilot, update the pins in `package.json` and the
   lockfile together, and verify real custom-agent delegation and MCP behavior,
   not only schema validity. Without paid-run approval, report live delegation

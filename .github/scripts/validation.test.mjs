@@ -374,10 +374,10 @@ test("validation calls CI scripts, and paid eval activation is manual-only", () 
   assert.doesNotMatch(evals, /pull_request:|ENABLE_EVALS/);
   assert.match(evals, /^\s+environment:\s*evals$/m);
   assert.match(evals, /copilot-requests: write/);
-  assert.match(evals, /npm run eval -- --suite "\$SUITE" --require-pass/);
+  assert.match(evals, /npm run eval -- --suite "\$SUITE" --model "\$EVAL_MODEL" --require-pass/);
   const workflow = parse(evals);
   const job = workflow.jobs.evals;
-  const evalStep = job.steps.find((step) => step.run === 'npm run eval -- --suite "$SUITE" --require-pass');
+  const evalStep = job.steps.find((step) => step.run === 'npm run eval -- --suite "$SUITE" --model "$EVAL_MODEL" --require-pass');
   assert.equal(workflow.env?.GITHUB_TOKEN, undefined);
   assert.equal(job.env?.GITHUB_TOKEN, undefined);
   assert.deepEqual(job.steps.filter((step) => step.env?.GITHUB_TOKEN !== undefined), [evalStep],

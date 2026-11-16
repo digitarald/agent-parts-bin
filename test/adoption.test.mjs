@@ -10,7 +10,7 @@ import { parse, stringify } from "yaml";
 import { assetsWithEvals, checkCoverage, discoverAssets, readEvals, root, suiteTags } from "../.github/scripts/validate-evals.mjs";
 import { readVallyConfig } from "../.github/scripts/catalog.mjs";
 import { examples } from "../.github/scripts/examples.mjs";
-import { pruneMarkdown } from "../.github/scripts/remove-plugin.mjs";
+import { assertRemovable, pruneMarkdown } from "../.github/scripts/remove-plugin.mjs";
 
 // Never copied into a scratch repository: dependencies are linked, and results,
 // eval state, and isolated Copilot homes don't belong to the template.
@@ -93,6 +93,16 @@ async function verify(directory, { tests = true } = {}) {
 
 const newPlugin = (directory, ...args) => ok(directory, ".github/scripts/new-plugin.mjs", ...args);
 const removeExamples = (directory, ...names) => ok(directory, ".github/scripts/remove-plugin.mjs", "--example", ...names);
+
+test("example removal permits only explicitly owned infrastructure files, never their directories or siblings", () => {
+  for (const path of [
+    ".github/scripts", ".github/workflows", ".github/workflows/validate.yml",
+    ".github/scripts/remove-plugin.mjs", "../outside/.github/workflows/eval-pr.yml",
+  ]) assert.throws(() => assertRemovable(root, path), /Refusing/);
+  for (const path of Object.values(examples).flatMap((example) => example.paths).filter((path) => path.startsWith(".github/"))) {
+    assert.equal(assertRemovable(root, path), resolve(root, path));
+  }
+});
 
 // Follows the README's "Make it yours" steps on a copy of this repository, as a
 // team that already has its own plugins would: one named like an old test

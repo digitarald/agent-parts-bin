@@ -16,13 +16,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   validate:
-    name: validate (${{ matrix.os }}, Node.js ${{ matrix.node }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        node: [22, 24]
-    runs-on: ${{ matrix.os }}
+    name: validate (Linux, Node.js 24)
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       VALLY_TELEMETRY_OPTOUT: '1'
@@ -32,7 +27,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run verify

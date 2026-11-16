@@ -10,6 +10,14 @@ export const root = fileURLToPath(new URL("../../", import.meta.url));
 // these, and example-only tests skip when the files they need are gone.
 // Keep this map in step when you add a test, grader, fixture, or param for an example.
 export const examples = Object.freeze({
+  "commit-attribution": {
+    paths: [
+      ".github/scripts/commit-attribution-pr.mjs",
+      ".github/scripts/commit-attribution-pr.test.mjs",
+      ".github/workflows/eval-pr.yml",
+    ],
+    params: [],
+  },
   "session-todos": { paths: ["canvases/session-todos"], params: [] },
   "plugin-authoring": { paths: [], params: [] },
   "marketplace-maintainer": { paths: [], params: [] },

@@ -74,7 +74,7 @@ npm run build
 npm run verify
 ```
 
-`verify` is model-free and must pass. CI runs it on Linux, Windows, and macOS.
+`verify` is model-free and must pass. CI runs it on Linux with Node.js 24.
 It checks structure, types, generated files, and tests, not eval coverage or
 eval linting. Passing it does not establish usefulness or safety.
 It reports every problem at once as `path: message`, and warns about leftovers

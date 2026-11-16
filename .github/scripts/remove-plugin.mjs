@@ -132,15 +132,18 @@ async function removeEmptyDirectories(directory, paths) {
   }
 }
 
-// Throws unless `path` stays inside plugins/, canvases/, evals/, or test/ (or is the
-// examples guide), so a bad name can never point a recursive delete elsewhere.
+// Infrastructure files are removable only when listed explicitly for an example.
+const removableInfrastructure = new Set(Object.values(examples).flatMap((example) => example.paths)
+  .filter((path) => /^\.github\/(?:scripts\/[^/]+\.mjs|workflows\/[^/]+\.yml)$/.test(path)));
+
 export function assertRemovable(directory, path) {
   const target = resolve(directory, path);
   const rel = relative(resolve(directory), target);
   const parts = rel.split(sep);
   const inside = !isAbsolute(rel) && !parts.includes("..");
-  const allowed = inside && (parts.length > 1 && ["plugins", "canvases", "evals", "test"].includes(parts[0]) || parts.join("/") === "docs/examples.md");
-  if (!allowed) throw new Error(`Refusing to remove ${path}: removal only deletes files inside plugins/, canvases/, evals/, or test/. Nothing was removed.`);
+  const allowed = inside && (parts.length > 1 && ["plugins", "canvases", "evals", "test"].includes(parts[0])
+    || parts.join("/") === "docs/examples.md" || removableInfrastructure.has(parts.join("/")));
+  if (!allowed) throw new Error(`Refusing to remove ${path}: removal only deletes plugin-owned files or explicitly listed example infrastructure. Nothing was removed.`);
   return target;
 }
 

@@ -191,12 +191,14 @@ test("the source validator accepts CRLF changelog headings and excludes generate
 
 // These check the safety properties of the workflows, not their exact shape, so
 // the customizations docs/ci.md describes keep npm run verify passing: trimming
-// the validate matrix, removing the evals environment, uploading transcripts
+// the validate matrix or using one job, removing the evals environment, uploading transcripts
 // for a debug run, or deleting evals.yml.
 test("deterministic CI stays model-free, and behavioral CI is manual-only with a pinned runtime", async () => {
   const automatic = parse(await readFile(resolve(root, ".github/workflows/validate.yml"), "utf8"));
   const evalsPath = resolve(root, ".github/workflows/evals.yml");
   const evals = existsSync(evalsPath) ? parse(await readFile(evalsPath, "utf8")) : undefined;
+  const comparisonPath = resolve(root, ".github/workflows/eval-pr.yml");
+  const comparison = existsSync(comparisonPath) ? parse(await readFile(comparisonPath, "utf8")) : undefined;
   const manifest = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
   assert.deepEqual(automatic.permissions, { contents: "read" });
   // Pull requests, plus pushes to named branches only, so a pushed PR branch
@@ -206,11 +208,16 @@ test("deterministic CI stays model-free, and behavioral CI is manual-only with a
   if (automatic.on.push !== undefined) assert.ok(automatic.on.push?.branches?.length, "Limit validate.yml's push trigger to your default branch.");
   assert.match(String(automatic.concurrency?.group ?? ""), /github\.ref/);
   assert.ok(automatic.concurrency?.["cancel-in-progress"], "Cancel superseded validate runs.");
-  const { matrix } = automatic.jobs.validate.strategy;
-  assert.ok(Array.isArray(matrix.os) && matrix.os.length, "Keep at least one operating system in the matrix.");
-  assert.ok(Array.isArray(matrix.node) && matrix.node.length && matrix.node.every((major) => Number(major) >= 22), "Test Node.js 22 or newer.");
+  const validation = automatic.jobs.validate;
+  const matrix = validation.strategy?.matrix;
+  const operatingSystems = validation["runs-on"] === "${{ matrix.os }}" ? matrix?.os : [validation["runs-on"]];
+  const setupValidationNode = validation.steps.find((step) => step.uses?.startsWith("actions/setup-node@"));
+  const nodeVersion = setupValidationNode?.with?.["node-version"];
+  const nodeVersions = nodeVersion === "${{ matrix.node }}" ? matrix?.node : [nodeVersion];
+  assert.ok(Array.isArray(operatingSystems) && operatingSystems.length && operatingSystems.every((os) => typeof os === "string" && os.length), "Keep at least one operating system.");
+  assert.ok(Array.isArray(nodeVersions) && nodeVersions.length && nodeVersions.every((major) => Number(major) >= 22), "Test Node.js 22 or newer.");
   assert.ok(automatic.jobs.validate.steps.some((step) => step.run === "npm run verify"));
-  for (const workflow of [automatic, evals].filter(Boolean)) {
+  for (const workflow of [automatic, evals, comparison].filter(Boolean)) {
     for (const job of Object.values(workflow.jobs)) {
       for (const step of job.steps) {
         assert.equal(step["continue-on-error"], undefined);
@@ -243,6 +250,7 @@ test("deterministic CI stays model-free, and behavioral CI is manual-only with a
     assert.ok(!Object.values(job.permissions ?? {}).includes("write-all") && job.permissions?.contents === "read", name);
     const setupNode = job.steps.find((step) => step.uses?.startsWith("actions/setup-node@"));
     assert.ok(Number(setupNode.with["node-version"]) >= 22, name);
+    assert.ok(nodeVersions.map(Number).includes(Number(setupNode.with["node-version"])), "Run evals on a Node.js major covered by validation.");
     const preflight = job.steps.find((step) => step.name === "Check the runtime bridge");
     if (preflight) assert.ok(job.steps.indexOf(job.steps.find((step) => step.run?.startsWith("npm ci"))) < job.steps.indexOf(preflight), name);
   }
@@ -253,6 +261,31 @@ test("deterministic CI stays model-free, and behavioral CI is manual-only with a
     if (report) assert.ok(job.steps.indexOf(runStep) < job.steps.indexOf(report), name);
     const upload = job.steps.find((step) => step.uses?.startsWith("actions/upload-artifact@"));
     if (upload) assert.match(upload.if, /vars\.EVALS_UPLOAD_RESULTS == 'true'/, "Transcripts upload only when someone opts in.");
+  }
+  if (comparison) {
+    assert.deepEqual(Object.keys(comparison.on), ["workflow_dispatch"]);
+    assert.equal(comparison.on.workflow_dispatch.inputs.head.required, true);
+    assert.equal(comparison.concurrency["cancel-in-progress"], false);
+    assert.deepEqual(comparison.permissions, { contents: "read" });
+    const { compare, report } = comparison.jobs;
+    assert.equal(compare.permissions["copilot-requests"], "write");
+    assert.equal(compare.permissions["pull-requests"], "read");
+    assert.equal(report.permissions["copilot-requests"], undefined);
+    assert.equal(report.permissions["pull-requests"], "write");
+    assert.equal(report.needs, "compare");
+    assert.match(report.if, /!cancelled\(\).*report_ready == 'true'/);
+    assert.ok(compare.steps[0].run.includes('test "$GITHUB_REF" = refs/heads/main'));
+    for (const job of [compare, report]) {
+      assert.equal(job["runs-on"], "ubuntu-latest");
+      assert.ok(nodeVersions.map(Number).includes(Number(job.steps.find((step) => step.uses?.startsWith("actions/setup-node@")).with["node-version"])));
+    }
+    for (const [, job] of runners) {
+      assert.equal(job.env.EVAL_MODEL, comparison.env.EVAL_MODEL);
+      assert.notEqual(job.env.EVAL_MODEL, "auto");
+      assert.ok(job.steps.some((step) => step.run?.includes('--model "$EVAL_MODEL"')));
+    }
+    const artifact = compare.steps.find((step) => step.uses?.startsWith("actions/upload-artifact@"));
+    assert.equal(artifact.with.path, "${{ runner.temp }}/pr-eval-report.json");
   }
 });
 
