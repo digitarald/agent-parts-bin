@@ -1,5 +1,5 @@
 name: commit-attribution-message
-description: Explore commit-message attribution and routing without making commits or testing hook installation.
+description: Check attributed-message drafting and Git-question routing without creating commits or installing hooks.
 type: capability
 defaults:
   executor: copilot-sdk
